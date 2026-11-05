@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Painel do administrador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container">
+    <div class="page-head">
+      <span class="eyebrow">Área restrita</span>
+      <h1>Painel do <span class="hl">administrador</span></h1>
+      <p class="muted">Envie materiais de estudo e organize os módulos de cada trilha. Só o perfil administrador tem acesso a esta área.</p>
+    </div>
+
+    <div class="admin-grid">
+      <!-- Upload -->
+      <section class="card">
+        <div class="section-title"><h2>Enviar material</h2></div>
+        <form id="upload-form" novalidate>
+          <div class="form-row">
+            <div class="field">
+              <label for="up-track">Trilha</label>
+              <select id="up-track" name="track">
+                <option value="A1">A1 · Iniciante</option>
+                <option value="A2">A2 · Básico</option>
+                <option value="B2">B2 · Intermediário sup.</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="up-module">Módulo</label>
+              <select id="up-module" name="moduleId" required></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="up-title">Título</label>
+            <input id="up-title" name="title" maxlength="160" placeholder="Ex.: Lista de verbos irregulares">
+            <span class="hint">Se ficar em branco, usamos o nome do arquivo.</span>
+          </div>
+          <div class="field">
+            <label for="up-desc">Descrição (opcional)</label>
+            <textarea id="up-desc" name="description" maxlength="1000"></textarea>
+          </div>
+          <div class="field">
+            <label class="drop" id="drop">
+              <input type="file" id="up-file" name="file" required>
+              <span id="drop-text">Clique ou arraste um arquivo aqui<br><span class="small" id="allowed-types"></span></span>
+            </label>
+          </div>
+          <div class="upload-progress" id="up-progress" hidden><span></span></div>
+          <p class="alert" id="upload-msg" role="status"></p>
+          <button class="btn btn-block" type="submit" id="upload-btn">Publicar material</button>
+        </form>
+      </section>
+
+      <!-- Módulos e materiais -->
+      <section class="card">
+        <div class="section-title">
+          <h2>Módulos e materiais</h2>
+          <div class="segmented" id="track-filter">
+            <button type="button" data-track="A1" class="active">A1</button>
+            <button type="button" data-track="A2">A2</button>
+            <button type="button" data-track="B2">B2</button>
+          </div>
+        </div>
+
+        <form class="inline-form" id="module-form" novalidate>
+          <div class="field">
+            <label for="mod-title">Novo módulo</label>
+            <input id="mod-title" name="title" maxlength="120" placeholder="Título">
+          </div>
+          <div class="field">
+            <label for="mod-desc" class="small muted">Descrição</label>
+            <input id="mod-desc" name="description" maxlength="500" placeholder="Opcional">
+          </div>
+          <button class="btn" type="submit">Adicionar</button>
+        </form>
+        <p class="alert alert-error" id="module-msg" role="alert"></p>
+
+        <div id="admin-modules"></div>
+      </section>
+    </div>
+
+    <section class="card mt">
+      <div class="section-title"><h2>Alunos cadastrados</h2><span class="small muted" id="students-count"></span></div>
+      <div id="students"></div>
+    </section>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

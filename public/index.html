@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Entrar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="auth-layout">
+    <section class="auth-hero">
+      <a class="brand" href="/"><span class="brand-mark">N</span><span class="brand-text"><strong>NOVERA</strong><span>ACADEMY</span></span></a>
+      <div>
+        <span class="eyebrow">Plataforma de estudos</span>
+        <h1>Seu inglês, <span class="hl">no seu nível</span>.</h1>
+        <p class="lead">Faça o teste de nivelamento, descubra se você é A1, A2 ou B2 e siga uma trilha de estudos feita para o seu momento — com materiais, áudios e vídeos em um só lugar.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>5 min</strong><span>de nivelamento</span></div>
+        <div class="stat"><strong>3 trilhas</strong><span>A1 · A2 · B2</span></div>
+        <div class="stat"><strong>100%</strong><span>online</span></div>
+      </div>
+      <div class="hero-levels">
+        <div class="hero-level"><span class="level-badge level-A1">A1</span><span>Iniciante — a base da língua</span></div>
+        <div class="hero-level"><span class="level-badge level-A2">A2</span><span>Básico — situações do dia a dia</span></div>
+        <div class="hero-level"><span class="level-badge level-B2">B2</span><span>Intermediário superior — fluência e precisão</span></div>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card card">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="login" class="active" aria-selected="true">Entrar</button>
+          <button type="button" role="tab" data-tab="register" aria-selected="false">Criar conta</button>
+        </div>
+
+        <form id="login-form" novalidate>
+          <h2>Bem-vindo de volta</h2>
+          <p class="muted small">Entre com seu e-mail (ou usuário, se for administrador).</p>
+          <div class="field">
+            <label for="login-identifier">E-mail ou usuário</label>
+            <input id="login-identifier" name="identifier" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="login-password">Senha</label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="btn btn-block" type="submit">Entrar <span class="arrow">→</span></button>
+        </form>
+
+        <form id="register-form" novalidate hidden>
+          <h2>Crie sua conta</h2>
+          <p class="muted small">Depois do cadastro você fará um teste rápido de nivelamento.</p>
+          <div class="field">
+            <label for="reg-name">Nome</label>
+            <input id="reg-name" name="name" autocomplete="name" required minlength="2" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="reg-email">E-mail</label>
+            <input id="reg-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="reg-password">Senha</label>
+            <input id="reg-password" name="password" type="password" autocomplete="new-password" required minlength="8">
+            <span class="hint">Mínimo de 8 caracteres.</span>
+          </div>
+          <div class="field">
+            <label for="reg-confirm">Confirmar senha</label>
+            <input id="reg-confirm" name="confirm" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="btn btn-block" type="submit">Criar conta <span class="arrow">→</span></button>
+        </form>
+
+        <p class="alert alert-error" id="auth-error" role="alert"></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/login.js"></script>
+</body>
+</html>

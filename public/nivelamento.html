@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Nivelamento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container">
+    <section class="quiz card" id="intro" hidden>
+      <span class="eyebrow">Teste de nivelamento</span>
+      <h1 id="intro-title">Descubra seu <span class="hl">nível de inglês</span></h1>
+      <p class="muted">São <strong id="q-count">15</strong> questões de múltipla escolha de gramática e vocabulário, em ordem crescente de dificuldade. Leva cerca de 5 minutos. Responda sem consultar: o objetivo é encontrar a trilha ideal para você.</p>
+      <p class="muted small" id="last-result"></p>
+      <div class="band-grid">
+        <div class="band"><span class="level-badge level-A1">A1</span><p class="small dim">Iniciante</p></div>
+        <div class="band"><span class="level-badge level-A2">A2</span><p class="small dim">Básico</p></div>
+        <div class="band"><span class="level-badge level-B2">B2</span><p class="small dim">Intermediário superior</p></div>
+      </div>
+      <button class="btn" id="start-btn" type="button">Começar o teste</button>
+    </section>
+
+    <section class="quiz card" id="quiz" hidden>
+      <div class="q-meta"><span id="q-position"></span><span id="q-skill"></span></div>
+      <div class="progress"><span id="q-progress"></span></div>
+      <p class="q-prompt" id="q-prompt"></p>
+      <div class="options" id="q-options" role="radiogroup" aria-labelledby="q-prompt"></div>
+      <p class="alert alert-error" id="quiz-error" role="alert"></p>
+      <div class="quiz-actions">
+        <button class="btn btn-ghost" id="prev-btn" type="button">Voltar</button>
+        <button class="btn" id="next-btn" type="button" disabled>Próxima</button>
+      </div>
+    </section>
+
+    <section class="quiz card" id="result" hidden>
+      <span class="eyebrow">Resultado</span>
+      <p class="muted">Seu nível é</p>
+      <div class="result-level" id="r-level"></div>
+      <p id="r-desc" class="muted"></p>
+      <p><strong id="r-score"></strong></p>
+      <div class="band-grid" id="r-bands"></div>
+      <div class="result-actions">
+        <a class="btn" id="go-track" href="/trilha">Ir para minha trilha</a>
+        <button class="btn btn-ghost" id="retry-btn" type="button">Refazer o teste</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/placement.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Trilha de estudos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container">
+    <nav class="level-tabs" id="level-tabs" aria-label="Trilhas por nível"></nav>
+
+    <div id="other-level-notice" class="notice" hidden></div>
+
+    <div class="track-hero">
+      <div>
+        <span class="eyebrow" id="track-eyebrow">Trilha de estudos</span>
+        <h1 id="track-title"></h1>
+        <p class="muted" id="track-desc"></p>
+      </div>
+      <a class="btn btn-ghost btn-sm" href="/nivelamento" id="redo-link">Refazer nivelamento</a>
+    </div>
+
+    <p class="alert alert-error" id="track-error" role="alert"></p>
+    <div class="modules" id="modules"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/track.js"></script>
+</body>
+</html>
