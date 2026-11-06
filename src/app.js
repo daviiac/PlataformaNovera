@@ -43,6 +43,30 @@ app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(loadUser);
 
+// ---------- Diagnóstico ----------
+// Mostra só se cada configuração existe e se o banco responde (nunca valores ou segredos).
+app.get('/api/health', async (req, res) => {
+  const db = require('./db');
+  let database = 'ok';
+  try {
+    await db.query('SELECT 1');
+  } catch (err) {
+    database = `erro: ${err.code ? `[${err.code}] ` : ''}${String(err.message).replace(/\w+:\/\/\S+/g, '<url>').slice(0, 200)}`;
+  }
+  res.set('Cache-Control', 'no-store');
+  res.status(database === 'ok' ? 200 : 503).json({
+    database,
+    env: {
+      DATABASE_URL: Boolean(process.env.DATABASE_URL),
+      SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
+      SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      SUPABASE_BUCKET: process.env.SUPABASE_BUCKET || null,
+    },
+    storage: storage.name,
+    region: process.env.VERCEL_REGION || null,
+  });
+});
+
 // ---------- API ----------
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/placement', require('./routes/placement'));

@@ -9,7 +9,7 @@
  * O schema é criado automaticamente na primeira consulta de cada instância.
  */
 const fs = require('node:fs');
-const { DATABASE_URL, PGLITE_DIR } = require('./config');
+const { DATABASE_URL, PGLITE_DIR, IS_VERCEL } = require('./config');
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS users (
@@ -87,6 +87,14 @@ async function createDriver() {
       ssl: isLocal ? false : (ca ? { ca } : { rejectUnauthorized: false }),
     });
     return { query: async (sql, params) => (await pool.query(sql, params)).rows, end: () => pool.end() };
+  }
+
+  // Na Vercel o disco é somente leitura: sem DATABASE_URL não há banco possível.
+  if (IS_VERCEL) {
+    throw Object.assign(
+      new Error('DATABASE_URL não configurada na Vercel (Settings → Environment Variables) — faça um Redeploy depois de cadastrar.'),
+      { code: 'NO_DATABASE_URL' },
+    );
   }
 
   // PGlite: módulo carregado só quando não há DATABASE_URL (dev/testes).
