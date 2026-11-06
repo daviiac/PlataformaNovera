@@ -3,7 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const {
-  ah, hashPassword, verifyPassword, createSession, destroySession, rateLimit,
+  ah, hashPassword, verifyPassword, createSession, destroySession, rateLimit, resetRateLimit,
 } = require('../auth');
 
 const router = express.Router();
@@ -11,17 +11,26 @@ const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  keyFn: (req) => `${req.ip}|${str(req.body?.identifier || req.body?.email).toLowerCase()}`,
-});
+const MIN = 60 * 1000;
+const identifierOf = (req) => str(req.body?.identifier || req.body?.email).toLowerCase();
+
+// Login: por IP + conta, por IP (muitas contas) e por conta (ataque distribuído de vários IPs).
+const loginLimiter = rateLimit([
+  { name: 'login-id', windowMs: 15 * MIN, max: 8, keyFn: (req) => `${req.ip}|${identifierOf(req)}` },
+  { name: 'login-ip', windowMs: 15 * MIN, max: 40, keyFn: (req) => req.ip },
+  { name: 'login-account', windowMs: 60 * MIN, max: 50, keyFn: identifierOf },
+]);
+
+// Cadastro: evita criação de contas em massa a partir do mesmo IP.
+const registerLimiter = rateLimit([
+  { name: 'register-ip', windowMs: 60 * MIN, max: 15, keyFn: (req) => req.ip },
+]);
 
 function publicUser(u) {
   return { id: u.id, name: u.name, email: u.email, username: u.username, role: u.role, level: u.level };
 }
 
-router.post('/register', limiter, ah(async (req, res) => {
+router.post('/register', registerLimiter, ah(async (req, res) => {
   const name = str(req.body?.name);
   const email = str(req.body?.email).toLowerCase();
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
@@ -52,7 +61,7 @@ router.post('/register', limiter, ah(async (req, res) => {
   res.status(201).json({ user: publicUser(user) });
 }));
 
-router.post('/login', limiter, ah(async (req, res) => {
+router.post('/login', loginLimiter, ah(async (req, res) => {
   const identifier = str(req.body?.identifier).toLowerCase();
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!identifier || !password) return res.status(400).json({ error: 'Informe usuário/e-mail e senha.' });
@@ -62,6 +71,7 @@ router.post('/login', limiter, ah(async (req, res) => {
   const ok = await verifyPassword(password, user?.password_hash);
   if (!user || !ok) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
 
+  await resetRateLimit('login-id', `${req.ip}|${identifier}`);
   await createSession(res, user.id);
   res.json({ user: publicUser(user) });
 }));

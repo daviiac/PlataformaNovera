@@ -66,6 +66,13 @@ const SCHEMA = `
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_materials_module ON materials(module_id);
+
+  CREATE TABLE IF NOT EXISTS auth_attempts (
+    key      TEXT    PRIMARY KEY,
+    count    INTEGER NOT NULL,
+    reset_at BIGINT  NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_auth_attempts_reset ON auth_attempts(reset_at);
 `;
 
 /**
@@ -76,7 +83,7 @@ const SCHEMA = `
  *  - privilégios revogados desses papéis (defesa em profundidade).
  * O dono das tabelas ignora o RLS, por isso o servidor continua funcionando normalmente.
  */
-const TABLES = ['users', 'sessions', 'placement_results', 'modules', 'materials'];
+const TABLES = ['users', 'sessions', 'placement_results', 'modules', 'materials', 'auth_attempts'];
 const LOCKDOWN = [
   ...TABLES.map((t) => `ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`),
   `DO $$

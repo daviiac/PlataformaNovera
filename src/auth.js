@@ -89,27 +89,41 @@ function requirePlacement(req, res, next) {
 }
 
 /**
- * Limitador simples em memória contra força bruta no login/cadastro.
- * Em serverless o contador vale por instância — é uma barreira básica, não absoluta.
+ * Limitador contra força bruta guardado no banco: vale para todas as instâncias
+ * serverless ao mesmo tempo (um contador em memória "zera" a cada nova instância).
+ * As chaves são guardadas como hash (não ficam IPs nem e-mails em texto no banco).
+ *
+ * limits: [{ name, windowMs, max, keyFn(req) }] — todos precisam estar dentro do limite.
  */
-function rateLimit({ windowMs, max, keyFn }) {
-  const hits = new Map();
-  return (req, res, next) => {
+function rateLimit(limits) {
+  return ah(async (req, res, next) => {
     const now = Date.now();
-    if (hits.size > 5000) for (const [k, e] of hits) if (e.resetAt <= now) hits.delete(k);
-    const key = keyFn(req);
-    let entry = hits.get(key);
-    if (!entry || entry.resetAt <= now) {
-      entry = { count: 0, resetAt: now + windowMs };
-      hits.set(key, entry);
+    let retryAfterMs = 0;
+    for (const { name, windowMs, max, keyFn } of limits) {
+      const key = sha256(`${name}|${keyFn(req)}`);
+      const row = await db.one(`
+        INSERT INTO auth_attempts (key, count, reset_at) VALUES ($1, 1, $2)
+        ON CONFLICT (key) DO UPDATE SET
+          count    = CASE WHEN auth_attempts.reset_at <= $3 THEN 1  ELSE auth_attempts.count + 1 END,
+          reset_at = CASE WHEN auth_attempts.reset_at <= $3 THEN $2 ELSE auth_attempts.reset_at END
+        RETURNING count, reset_at
+      `, [key, now + windowMs, now]);
+      if (row.count > max) retryAfterMs = Math.max(retryAfterMs, Number(row.reset_at) - now);
     }
-    entry.count += 1;
-    if (entry.count > max) {
-      res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+    // Limpeza ocasional de contadores vencidos.
+    if (Math.random() < 0.02) await db.query('DELETE FROM auth_attempts WHERE reset_at < $1', [now]);
+
+    if (retryAfterMs > 0) {
+      res.set('Retry-After', String(Math.ceil(retryAfterMs / 1000)));
       return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
     }
     next();
-  };
+  });
+}
+
+/** Zera um contador (ex.: depois de um login bem-sucedido). */
+async function resetRateLimit(name, keyValue) {
+  await db.query('DELETE FROM auth_attempts WHERE key = $1', [sha256(`${name}|${keyValue}`)]);
 }
 
 module.exports = {
@@ -123,4 +137,5 @@ module.exports = {
   requireAdmin,
   requirePlacement,
   rateLimit,
+  resetRateLimit,
 };

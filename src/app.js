@@ -15,9 +15,11 @@ if (IS_VERCEL || process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 
 // Cabeçalhos de segurança. Em produção os arquivos vêm de URLs assinadas do Supabase,
 // então o domínio do Storage é liberado para upload (connect), mídia e PDF (frame).
+// (As páginas estáticas servidas pela CDN recebem os mesmos cabeçalhos via vercel.json.)
 const storageOrigin = storage.origin ? ` ${storage.origin}` : '';
 const CSP = [
   "default-src 'self'",
+  "script-src 'self'",
   "style-src 'self' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   `img-src 'self' data:${storageOrigin}`,
@@ -28,15 +30,36 @@ const CSP = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'self'",
+  ...(config.IS_PRODUCTION ? ['upgrade-insecure-requests'] : []),
 ].join('; ');
 
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+  'Content-Security-Policy': CSP,
+};
+
 app.use((req, res, next) => {
-  res.set({
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'SAMEORIGIN',
-    'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': CSP,
-  });
+  res.set(SECURITY_HEADERS);
+  // Respostas da API podem conter dados do usuário: nunca guardar em cache compartilhado.
+  if (req.path.startsWith('/api/')) res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+  next();
+});
+
+// Defesa contra CSRF (além do cookie SameSite=Strict): pedidos que alteram dados
+// vindos de outro site são recusados. Ferramentas sem Origin (curl, testes) passam.
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+app.use('/api', (req, res, next) => {
+  if (SAFE_METHODS.has(req.method)) return next();
+  const origin = req.get('origin');
+  if (!origin) return next();
+  let host = null;
+  try { host = new URL(origin).host; } catch { /* origem inválida */ }
+  if (host !== req.get('host')) return res.status(403).json({ error: 'Origem não permitida.' });
   next();
 });
 
@@ -45,18 +68,26 @@ app.use(cookieParser());
 app.use(loadUser);
 
 // ---------- Diagnóstico ----------
-// Mostra só se cada configuração existe e se o banco responde (nunca valores ou segredos).
+// Público: só diz se o serviço está de pé (sem revelar configuração).
+// Administrador logado: vê também quais configurações existem (nunca os valores).
 app.get('/api/health', async (req, res) => {
   const db = require('./db');
-  let database = 'ok';
+  let dbError = null;
   try {
     await db.query('SELECT 1');
   } catch (err) {
-    database = `erro: ${err.code ? `[${err.code}] ` : ''}${String(err.message).replace(/\w+:\/\/\S+/g, '<url>').slice(0, 200)}`;
+    dbError = err;
   }
-  res.set('Cache-Control', 'no-store');
-  res.status(database === 'ok' ? 200 : 503).json({
-    database,
+
+  if (req.user?.role !== 'admin') {
+    return res.status(dbError ? 503 : 200).json({ status: dbError ? 'indisponível' : 'ok' });
+  }
+
+  res.status(dbError ? 503 : 200).json({
+    status: dbError ? 'indisponível' : 'ok',
+    database: dbError
+      ? `erro: ${dbError.code ? `[${dbError.code}] ` : ''}${String(dbError.message).replace(/\w+:\/\/\S+/g, '<url>').slice(0, 200)}`
+      : 'ok',
     env: {
       DATABASE_URL: Boolean(config.DATABASE_URL),
       SUPABASE_URL: Boolean(config.SUPABASE_URL),

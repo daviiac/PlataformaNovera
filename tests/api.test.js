@@ -24,6 +24,7 @@ const { QUESTIONS } = require('../src/placement');
 const { makeDocx, makePptx, makeXlsx } = require('./fixtures');
 
 // Senha usada só no banco temporário dos testes (nunca a senha real do admin).
+const TEST_ADMIN_USER = 'admin-teste';
 const TEST_ADMIN_PASSWORD = 'senha-de-teste-123';
 
 let server;
@@ -71,7 +72,7 @@ async function newStudent(name, email, { placed = true } = {}) {
 
 async function adminClient() {
   const admin = client();
-  const login = await admin('POST', '/api/auth/login', { json: { identifier: 'davi', password: TEST_ADMIN_PASSWORD } });
+  const login = await admin('POST', '/api/auth/login', { json: { identifier: TEST_ADMIN_USER, password: TEST_ADMIN_PASSWORD } });
   assert.equal(login.status, 200);
   return admin;
 }
@@ -80,7 +81,7 @@ const firstModule = async (track = 'A1') => (await db.one('SELECT id FROM module
 const uploadedFiles = () => (fs.existsSync(process.env.UPLOAD_DIR) ? fs.readdirSync(process.env.UPLOAD_DIR) : []);
 
 before(async () => {
-  await ensureAdmin({ username: 'davi', password: TEST_ADMIN_PASSWORD, name: 'Davi' });
+  await ensureAdmin({ username: TEST_ADMIN_USER, password: TEST_ADMIN_PASSWORD, name: 'Admin Teste' });
   await ensureDefaultModules();
   await new Promise((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
@@ -93,7 +94,7 @@ after(async () => {
 });
 
 test('senha do admin é armazenada apenas como hash bcrypt', async () => {
-  const row = await db.one("SELECT password_hash FROM users WHERE username = 'davi'");
+  const row = await db.one("SELECT password_hash FROM users WHERE role = 'admin'");
   assert.match(row.password_hash, /^\$2[aby]\$12\$/);
   assert.ok(!row.password_hash.includes(TEST_ADMIN_PASSWORD));
 });
@@ -168,7 +169,7 @@ test('upload: anônimo recebe 401, aluno recebe 403 e nada é gravado', async ()
 
   assert.equal((await client()('POST', '/api/admin/uploads', startBody)).status, 401);
 
-  const student = await newStudent('Davi Aluno', 'aluno@exemplo.com');
+  const student = await newStudent('Aluno Teste', 'aluno@exemplo.com');
   assert.equal((await student('POST', '/api/admin/uploads', startBody)).status, 403);
 
   // Tentar gravar diretamente na rota de PUT local também é bloqueado.
@@ -301,4 +302,65 @@ test('pré-visualização de documentos: docx, pptx, xlsx e txt', async () => {
 
   assert.equal((await student('GET', `/api/materials/${doc.id}/preview`)).status, 415);
   assert.equal((await client()('GET', docx.viewUrl)).status, 401);
+});
+
+test('segurança: health público não revela configuração; admin vê detalhes', async () => {
+  const pub = await client()('GET', '/api/health');
+  assert.equal(pub.status, 200);
+  assert.deepEqual(pub.data, { status: 'ok' });
+
+  const student = await newStudent('Gil', 'gil@exemplo.com');
+  assert.deepEqual((await student('GET', '/api/health')).data, { status: 'ok' });
+
+  const admin = await adminClient();
+  const det = await admin('GET', '/api/health');
+  assert.equal(det.data.database, 'ok');
+  assert.ok('env' in det.data);
+});
+
+test('segurança: cabeçalhos e cache das respostas', async () => {
+  const r = await client()('GET', '/api/auth/me');
+  assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+  assert.equal(r.headers.get('x-frame-options'), 'SAMEORIGIN');
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(r.headers.get('permissions-policy'), /camera=()/);
+  assert.equal(r.headers.get('cache-control'), 'no-store');
+  assert.equal(r.headers.get('x-powered-by'), null);
+
+  const page = await client()('GET', '/');
+  assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+});
+
+test('segurança: pedidos de outro site (CSRF) são recusados', async () => {
+  const evil = await client()('POST', '/api/auth/login', {
+    json: { identifier: 'x@exemplo.com', password: 'x' },
+    headers: { origin: 'https://site-malicioso.example' },
+  });
+  assert.equal(evil.status, 403);
+
+  const same = await client()('POST', '/api/auth/login', {
+    json: { identifier: 'x@exemplo.com', password: 'x' },
+    headers: { origin: base },
+  });
+  assert.equal(same.status, 401);
+});
+
+test('segurança: força bruta no login é bloqueada (contador no banco)', async () => {
+  const c = client();
+  const statuses = [];
+  for (let i = 0; i < 10; i++) {
+    statuses.push((await c('POST', '/api/auth/login', { json: { identifier: 'alvo@exemplo.com', password: `errada${i}` } })).status);
+  }
+  assert.deepEqual(statuses.slice(0, 8), Array(8).fill(401));
+  assert.equal(statuses[8], 429);
+  assert.equal(statuses[9], 429);
+
+  // Os contadores ficam como hash: nenhum e-mail ou IP em texto no banco.
+  const rows = await db.query('SELECT key FROM auth_attempts');
+  assert.ok(rows.length > 0);
+  assert.ok(rows.every((r) => /^[0-9a-f]{64}$/.test(r.key)));
+
+  // Outra conta não é afetada pelo bloqueio da primeira.
+  const other = await client()('POST', '/api/auth/login', { json: { identifier: 'outra@exemplo.com', password: 'x' } });
+  assert.equal(other.status, 401);
 });
