@@ -4,3 +4,4 @@ data/
 storage/
 *.db
 *.db-*
+.vercel/

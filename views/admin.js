@@ -41,29 +41,39 @@
     updateDrop();
   });
 
-  // ---------- Upload (XHR para ter progresso) ----------
-  $('upload-form').addEventListener('submit', (e) => {
+  // ---------- Upload ----------
+  // 1) pede ao servidor uma URL de envio (só admin) · 2) envia o arquivo direto para o
+  // armazenamento (Supabase em produção) com barra de progresso · 3) registra o material.
+
+  /** PUT do arquivo com progresso (fetch não informa progresso de upload). */
+  function putFile(upload, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(upload.method || 'PUT', upload.url);
+      Object.entries(upload.headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.upload.addEventListener('progress', (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) return resolve();
+        let detail = '';
+        try { const d = JSON.parse(xhr.responseText); detail = d.error || d.message || ''; } catch { /* vazio */ }
+        reject(new Error(`Falha ao enviar o arquivo (erro ${xhr.status})${detail ? `: ${detail}` : '.'}`));
+      });
+      xhr.addEventListener('error', () => reject(new Error('Falha de rede durante o envio do arquivo.')));
+      xhr.send(file);
+    });
+  }
+
+  $('upload-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = $('upload-msg');
-    msg.className = 'alert';
-    msg.textContent = '';
+    const setMsg = (type, text) => { msg.className = type ? `alert alert-${type}` : 'alert'; msg.textContent = text; };
+    setMsg('', '');
 
     const file = fileInput.files[0];
-    if (!$('up-module').value) { msg.className = 'alert alert-error'; msg.textContent = 'Escolha um módulo.'; return; }
-    if (!file) { msg.className = 'alert alert-error'; msg.textContent = 'Selecione um arquivo.'; return; }
-    if (file.size > cfg.maxUploadMb * 1024 * 1024) {
-      msg.className = 'alert alert-error';
-      msg.textContent = `Arquivo maior que ${cfg.maxUploadMb} MB.`;
-      return;
-    }
-
-    const form = new FormData();
-    // Campos de texto antes do arquivo (o multer os lê na ordem em que chegam).
-    form.append('track', $('up-track').value);
-    form.append('moduleId', $('up-module').value);
-    form.append('title', $('up-title').value);
-    form.append('description', $('up-desc').value);
-    form.append('file', file);
+    const moduleId = $('up-module').value;
+    if (!moduleId) return setMsg('error', 'Escolha um módulo.');
+    if (!file) return setMsg('error', 'Selecione um arquivo.');
+    if (file.size > cfg.maxUploadMb * 1024 * 1024) return setMsg('error', `Arquivo maior que ${cfg.maxUploadMb} MB.`);
 
     const bar = $('up-progress');
     const btn = $('upload-btn');
@@ -71,37 +81,38 @@
     bar.firstElementChild.style.width = '0%';
     btn.disabled = true;
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/admin/materials');
-    xhr.upload.addEventListener('progress', (ev) => {
-      if (ev.lengthComputable) bar.firstElementChild.style.width = `${(ev.loaded / ev.total) * 100}%`;
-    });
-    xhr.addEventListener('load', async () => {
+    try {
+      const { objectPath, upload } = await api('/api/admin/uploads', {
+        method: 'POST', body: { fileName: file.name, size: file.size, moduleId },
+      });
+      setMsg('', 'Enviando arquivo…');
+      await putFile(upload, file, (p) => { bar.firstElementChild.style.width = `${Math.round(p * 100)}%`; });
+      setMsg('', 'Publicando…');
+      const data = await api('/api/admin/materials', {
+        method: 'POST',
+        body: {
+          objectPath,
+          originalName: file.name,
+          moduleId,
+          track: $('up-track').value,
+          title: $('up-title').value,
+          description: $('up-desc').value,
+        },
+      });
+
+      setMsg('success', `“${data.material.title}” publicado em ${data.module.track} › ${data.module.title}.`);
+      $('up-title').value = '';
+      $('up-desc').value = '';
+      fileInput.value = '';
+      updateDrop();
+      if (data.module.track === filterTrack) loadModules();
+      else setFilter(data.module.track);
+    } catch (err) {
+      setMsg('error', err.message);
+    } finally {
       btn.disabled = false;
       bar.hidden = true;
-      let data = {};
-      try { data = JSON.parse(xhr.responseText); } catch { /* vazio */ }
-      if (xhr.status === 201) {
-        msg.className = 'alert alert-success';
-        msg.textContent = `“${data.material.title}” publicado em ${data.module.track} › ${data.module.title}.`;
-        $('up-title').value = '';
-        $('up-desc').value = '';
-        fileInput.value = '';
-        updateDrop();
-        if (data.module.track === filterTrack) loadModules();
-        else setFilter(data.module.track);
-      } else {
-        msg.className = 'alert alert-error';
-        msg.textContent = data.error || `Falha no envio (erro ${xhr.status}).`;
-      }
-    });
-    xhr.addEventListener('error', () => {
-      btn.disabled = false;
-      bar.hidden = true;
-      msg.className = 'alert alert-error';
-      msg.textContent = 'Falha de rede durante o envio.';
-    });
-    xhr.send(form);
+    }
   });
 
   // ---------- Lista de módulos/materiais ----------

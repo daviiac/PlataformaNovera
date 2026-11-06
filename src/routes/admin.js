@@ -2,41 +2,41 @@
 
 const express = require('express');
 const db = require('../db');
-const { requireAdmin } = require('../auth');
+const { ah, requireAdmin } = require('../auth');
 const { isLevel } = require('../tracks');
-const { upload, ALLOWED, extOf, removeStoredFile } = require('../uploads');
+const { storage, ALLOWED, MAX_BYTES, extOf, isValidObjectPath, newObjectPath } = require('../storage');
 const { materialDto, moduleDto } = require('../dto');
 const config = require('../config');
 
 const router = express.Router();
 
-// IMPORTANTE: a checagem de perfil roda antes de qualquer handler deste router,
-// inclusive antes do multer — um não-admin não consegue nem gravar bytes no disco.
+// IMPORTANTE: a checagem de perfil roda antes de qualquer handler deste router.
+// Sem sessão de admin não se obtém URL de upload, não se grava arquivo e não se registra material.
 router.use(requireAdmin);
 
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 router.get('/config', (req, res) => {
-  res.json({ allowedExtensions: Object.keys(ALLOWED), maxUploadMb: config.MAX_UPLOAD_MB });
+  res.json({ allowedExtensions: Object.keys(ALLOWED), maxUploadMb: config.MAX_UPLOAD_MB, storage: storage.name });
 });
 
 // ---------- Módulos ----------
 
-router.get('/modules', (req, res) => {
+router.get('/modules', ah(async (req, res) => {
   const track = req.query.track ? String(req.query.track).toUpperCase() : null;
   if (track && !isLevel(track)) return res.status(400).json({ error: 'Trilha inválida.' });
 
-  const rows = db.prepare(`
-    SELECT m.*, COUNT(mt.id) AS material_count
+  const rows = await db.query(`
+    SELECT m.*, COUNT(mt.id)::int AS material_count
     FROM modules m LEFT JOIN materials mt ON mt.module_id = m.id
-    ${track ? 'WHERE m.track = ?' : ''}
+    ${track ? 'WHERE m.track = $1' : ''}
     GROUP BY m.id ORDER BY m.track, m.position, m.id
-  `).all(...(track ? [track] : []));
+  `, track ? [track] : []);
 
   res.json({ modules: rows.map((r) => ({ ...moduleDto(r), materialCount: r.material_count })) });
-});
+}));
 
-router.post('/modules', (req, res) => {
+router.post('/modules', ah(async (req, res) => {
   const track = str(req.body?.track, 4).toUpperCase();
   const title = str(req.body?.title, 120);
   const description = str(req.body?.description, 500);
@@ -44,82 +44,123 @@ router.post('/modules', (req, res) => {
   if (!isLevel(track)) return res.status(400).json({ error: 'Escolha uma trilha válida (A1, A2 ou B2).' });
   if (title.length < 2) return res.status(400).json({ error: 'Informe o título do módulo.' });
 
-  const dup = db.prepare('SELECT 1 FROM modules WHERE track = ? AND title = ?').get(track, title);
-  if (dup) return res.status(409).json({ error: 'Já existe um módulo com esse título nesta trilha.' });
+  try {
+    const created = await db.one(`
+      INSERT INTO modules (track, title, description, position)
+      VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position), 0) + 1 FROM modules WHERE track = $1))
+      RETURNING *
+    `, [track, title, description]);
+    res.status(201).json({ module: { ...moduleDto(created), materialCount: 0 } });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Já existe um módulo com esse título nesta trilha.' });
+    throw err;
+  }
+}));
 
-  const { pos } = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS pos FROM modules WHERE track = ?').get(track);
-  const result = db.prepare('INSERT INTO modules (track, title, description, position) VALUES (?, ?, ?, ?)')
-    .run(track, title, description, pos);
-
-  const created = db.prepare('SELECT * FROM modules WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ module: { ...moduleDto(created), materialCount: 0 } });
-});
-
-router.delete('/modules/:id', (req, res) => {
+router.delete('/modules/:id', ah(async (req, res) => {
   const id = Number(req.params.id);
-  const mod = db.prepare('SELECT * FROM modules WHERE id = ?').get(id);
+  const mod = Number.isInteger(id) ? await db.one('SELECT * FROM modules WHERE id = $1', [id]) : null;
   if (!mod) return res.status(404).json({ error: 'Módulo não encontrado.' });
 
-  const files = db.prepare('SELECT stored_name FROM materials WHERE module_id = ?').all(id);
-  db.prepare('DELETE FROM modules WHERE id = ?').run(id); // materiais caem em cascata
-  files.forEach((f) => removeStoredFile(f.stored_name));
+  const files = await db.query('SELECT stored_name FROM materials WHERE module_id = $1', [id]);
+  await db.query('DELETE FROM modules WHERE id = $1', [id]); // materiais caem em cascata
+  await Promise.all(files.map((f) => storage.remove(f.stored_name)));
   res.json({ ok: true, removedMaterials: files.length });
-});
+}));
 
-// ---------- Materiais ----------
+// ---------- Upload de materiais (2 etapas) ----------
+//
+// 1) POST /uploads      -> valida tipo/tamanho/módulo e devolve uma URL de upload
+//                          (assinada no Supabase; rota local no desenvolvimento)
+// 2) PUT  <url>         -> o navegador envia o arquivo direto para o armazenamento
+// 3) POST /materials    -> confere que o arquivo chegou e registra o material
 
-router.post('/materials', upload.single('file'), (req, res) => {
-  const file = req.file;
-  const fail = (status, error) => {
-    if (file) removeStoredFile(file.filename);
-    return res.status(status).json({ error });
-  };
+async function findModule(moduleId) {
+  const id = Number(moduleId);
+  return Number.isInteger(id) ? db.one('SELECT * FROM modules WHERE id = $1', [id]) : null;
+}
 
-  if (!file) return fail(400, 'Selecione um arquivo para enviar.');
+router.post('/uploads', ah(async (req, res) => {
+  const fileName = str(req.body?.fileName, 200);
+  const size = Number(req.body?.size);
+  const info = ALLOWED[extOf(fileName)];
 
-  const moduleId = Number(req.body?.moduleId);
-  const mod = Number.isInteger(moduleId) ? db.prepare('SELECT * FROM modules WHERE id = ?').get(moduleId) : null;
-  if (!mod) return fail(400, 'Escolha um módulo válido.');
+  if (!info) return res.status(400).json({ error: `Tipo de arquivo não permitido. Aceitos: ${Object.keys(ALLOWED).join(', ')}` });
+  if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'Arquivo vazio.' });
+  if (size > MAX_BYTES) return res.status(400).json({ error: `Arquivo maior que o limite de ${config.MAX_UPLOAD_MB} MB.` });
+  if (!(await findModule(req.body?.moduleId))) return res.status(400).json({ error: 'Escolha um módulo válido.' });
+
+  const objectPath = newObjectPath(extOf(fileName));
+  const upload = await storage.createUpload(objectPath, info.mime);
+  res.status(201).json({ objectPath, upload });
+}));
+
+// Destino do PUT no modo local (desenvolvimento). Em produção o PUT vai direto ao Supabase.
+router.put('/uploads/local/:name', ah(async (req, res) => {
+  if (storage.name !== 'local') return res.status(404).json({ error: 'Rota indisponível.' });
+  const objectPath = `materials/${req.params.name}`;
+  if (!isValidObjectPath(objectPath)) return res.status(400).json({ error: 'Caminho de arquivo inválido.' });
+  if (await storage.stat(objectPath)) return res.status(409).json({ error: 'Arquivo já enviado.' });
+  const { size } = await storage.receive(req, objectPath);
+  res.status(201).json({ ok: true, size });
+}));
+
+router.post('/materials', ah(async (req, res) => {
+  const objectPath = req.body?.objectPath;
+  const originalName = str(req.body?.originalName, 200);
+  if (!isValidObjectPath(objectPath)) return res.status(400).json({ error: 'Envio inválido.' });
+
+  const info = ALLOWED[extOf(objectPath)];
+  if (extOf(originalName) !== extOf(objectPath)) return res.status(400).json({ error: 'Nome de arquivo inconsistente.' });
+
+  const mod = await findModule(req.body?.moduleId);
+  if (!mod) return res.status(400).json({ error: 'Escolha um módulo válido.' });
 
   const track = str(req.body?.track, 4).toUpperCase();
-  if (track && track !== mod.track) return fail(400, 'O módulo escolhido não pertence a essa trilha.');
+  if (track && track !== mod.track) return res.status(400).json({ error: 'O módulo escolhido não pertence a essa trilha.' });
 
-  const info = ALLOWED[extOf(file.originalname)];
-  if (!info) return fail(400, 'Tipo de arquivo não permitido.');
+  const stat = await storage.stat(objectPath);
+  if (!stat) return res.status(400).json({ error: 'O arquivo não chegou ao armazenamento. Tente enviar novamente.' });
+  if (stat.size > MAX_BYTES) {
+    await storage.remove(objectPath);
+    return res.status(400).json({ error: `Arquivo maior que o limite de ${config.MAX_UPLOAD_MB} MB.` });
+  }
 
-  // Multer entrega o nome como latin1; convertemos para preservar acentos.
-  const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8').slice(0, 200);
   const title = str(req.body?.title, 160) || originalName.replace(/\.[^.]+$/, '');
   const description = str(req.body?.description, 1000);
 
-  const result = db.prepare(`
-    INSERT INTO materials (module_id, title, description, original_name, stored_name, mime_type, kind, size_bytes, uploaded_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(mod.id, title, description, originalName, file.filename, info.mime, info.kind, file.size, req.user.id);
-
-  const created = db.prepare('SELECT * FROM materials WHERE id = ?').get(result.lastInsertRowid);
+  let created;
+  try {
+    created = await db.one(`
+      INSERT INTO materials (module_id, title, description, original_name, stored_name, mime_type, kind, size_bytes, uploaded_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+    `, [mod.id, title, description, originalName, objectPath, info.mime, info.kind, stat.size, req.user.id]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Este arquivo já foi registrado.' });
+    throw err;
+  }
   res.status(201).json({ material: materialDto(created), module: moduleDto(mod) });
-});
+}));
 
-router.delete('/materials/:id', (req, res) => {
+router.delete('/materials/:id', ah(async (req, res) => {
   const id = Number(req.params.id);
-  const mat = db.prepare('SELECT * FROM materials WHERE id = ?').get(id);
+  const mat = Number.isInteger(id) ? await db.one('SELECT * FROM materials WHERE id = $1', [id]) : null;
   if (!mat) return res.status(404).json({ error: 'Material não encontrado.' });
 
-  db.prepare('DELETE FROM materials WHERE id = ?').run(id);
-  removeStoredFile(mat.stored_name);
+  await db.query('DELETE FROM materials WHERE id = $1', [id]);
+  await storage.remove(mat.stored_name);
   res.json({ ok: true });
-});
+}));
 
 // ---------- Alunos ----------
 
-router.get('/students', (req, res) => {
-  const rows = db.prepare(`
+router.get('/students', ah(async (req, res) => {
+  const rows = await db.query(`
     SELECT u.id, u.name, u.email, u.level, u.created_at,
-           (SELECT COUNT(*) FROM placement_results p WHERE p.user_id = u.id) AS attempts
+           (SELECT COUNT(*)::int FROM placement_results p WHERE p.user_id = u.id) AS attempts
     FROM users u WHERE u.role = 'student' ORDER BY u.created_at DESC, u.id DESC
-  `).all();
+  `);
   res.json({ students: rows });
-});
+}));
 
 module.exports = router;

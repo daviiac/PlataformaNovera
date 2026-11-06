@@ -4,18 +4,64 @@ Plataforma web de estudo de inglês com nivelamento (A1, A2, B2), trilhas de est
 
 ## Stack
 
-| Camada | Escolha | Por quê |
+| Camada | Produção (Vercel) | Desenvolvimento / testes |
 |---|---|---|
-| Servidor | Node.js 22 + Express 4 | Simples, maduro, uma linguagem só no projeto |
-| Banco | SQLite embutido do Node (`node:sqlite`) | Zero instalação e sem compilação nativa no Windows; o schema é SQL padrão e migra fácil para PostgreSQL |
-| Senhas | bcrypt (custo 12, `bcryptjs`) | Hash lento com salt; nunca há senha em texto puro no banco |
-| Sessão | Token aleatório de 256 bits em cookie `httpOnly` + `SameSite=Strict` | Só o hash SHA-256 do token fica no banco; logout invalida no servidor |
-| Upload | `multer` com lista branca de extensões e nomes aleatórios em disco | Arquivos ficam fora da pasta pública |
-| Frontend | HTML + CSS + JS puro | Sem build; CSP restritiva (`script-src 'self'`) |
+| Servidor | Express 4 como função serverless (`api/index.js`) | `npm start` (`src/server.js`) |
+| Páginas estáticas | CDN da Vercel (`public/`) | Express |
+| Banco | Postgres do **Supabase** (`DATABASE_URL`) | PGlite — Postgres embutido, sem instalar nada (`data/pglite`) |
+| Arquivos | **Supabase Storage**, bucket privado | Disco local (`storage/uploads`) |
+| Senhas | bcrypt (custo 12) | idem |
+| Sessão | Token aleatório em cookie `httpOnly` + `SameSite=Strict` + `Secure`; só o hash SHA-256 fica no banco | idem |
 
-## Como rodar
+### Por que o upload vai direto para o Supabase
 
-Requisito: **Node.js 22.13 ou superior**.
+Na Vercel cada requisição a uma função aceita no máximo **4,5 MB**. Por isso o painel do admin envia o arquivo **direto do navegador para o Supabase Storage**:
+
+1. `POST /api/admin/uploads` — o servidor confere se é admin, valida tipo, tamanho e módulo e devolve uma **URL de upload assinada** (uso único).
+2. O navegador faz `PUT` do arquivo nessa URL, com barra de progresso.
+3. `POST /api/admin/materials` — o servidor confirma no Storage que o arquivo chegou e registra o material.
+
+Downloads e vídeos usam **URLs assinadas temporárias**, geradas só para usuários logados; o bucket é privado.
+
+## Publicar na Vercel + Supabase
+
+### 1. Supabase
+
+1. Crie um projeto em https://supabase.com (região **South America (São Paulo)** para menor latência).
+2. Anote:
+   - **Connect → Transaction pooler** (porta **6543**): é o `DATABASE_URL`. Troque `[YOUR-PASSWORD]` pela senha do banco.
+   - **Settings → API**: `Project URL` → `SUPABASE_URL` e a chave **service_role** (secreta) → `SUPABASE_SERVICE_ROLE_KEY`.
+3. No seu computador, coloque esses valores no `.env` (junto com `ADMIN_USERNAME` e `ADMIN_PASSWORD`) e rode:
+
+   ```bash
+   npm run seed
+   ```
+
+   Isso cria as tabelas, o administrador (só o hash da senha), os 12 módulos iniciais e o bucket privado `materiais`.
+
+### 2. Vercel
+
+1. **Add New → Project** e importe o repositório `noveraacademyoficial/PlataformaNovera`.
+2. Framework Preset: **Other** (o `vercel.json` já define tudo; não há build).
+3. Em **Environment Variables**, cadastre:
+
+   | Variável | Valor |
+   |---|---|
+   | `DATABASE_URL` | URL do Transaction pooler (porta 6543) |
+   | `SUPABASE_URL` | Project URL |
+   | `SUPABASE_SERVICE_ROLE_KEY` | chave service_role |
+   | `SUPABASE_BUCKET` | `materiais` |
+   | `MAX_UPLOAD_MB` | `50` |
+
+   `ADMIN_USERNAME` / `ADMIN_PASSWORD` **não** precisam ir para a Vercel — o admin já foi criado pelo seed.
+4. **Deploy**. Cada `git push` na `main` publica uma nova versão.
+
+> O plano Hobby da Vercel é para uso não comercial; para a escola, use o plano Pro.
+> No plano gratuito do Supabase cada arquivo pode ter até 50 MB e o total é 1 GB.
+
+## Rodar localmente
+
+Requisito: **Node.js 22**.
 
 ```bash
 npm install
@@ -29,13 +75,11 @@ npm run seed
 npm start
 ```
 
-Acesse http://localhost:3000.
+Acesse http://localhost:3000. Sem `DATABASE_URL`/`SUPABASE_*` no `.env`, o projeto usa o Postgres embutido (PGlite) e disco local — nada para instalar. Preenchendo essas variáveis, o ambiente local passa a usar o Supabase de verdade.
 
-O `npm run seed` lê `ADMIN_USERNAME` / `ADMIN_PASSWORD` do arquivo `.env`, grava **apenas o hash bcrypt** da senha e cria 12 módulos iniciais (4 por trilha). Ele é idempotente: rodar de novo não altera nada. Para trocar a senha do admin, edite o `.env` e rode `npm run seed:reset-admin` (isso também encerra as sessões abertas do admin).
+Para trocar a senha do admin: edite o `.env` e rode `npm run seed:reset-admin` (encerra as sessões abertas do admin).
 
-> O `.env` está no `.gitignore`. Use o `.env.example` como modelo em outros ambientes e, depois do seed, a senha pode ser removida do `.env` — o banco só precisa do hash.
-
-Testes de integração (sobem o servidor com banco temporário):
+Testes (Postgres em memória, sem tocar no Supabase):
 
 ```bash
 npm test
@@ -45,48 +89,40 @@ npm test
 
 **Aluno**
 1. Cria conta (nome, e-mail, senha ≥ 8 caracteres) ou entra com e-mail e senha.
-2. Sem nível definido, é levado ao **teste de nivelamento**: 15 questões de múltipla escolha de gramática e vocabulário, 5 por faixa (A1, A2, B2).
-3. A correção é feita **no servidor** (as respostas corretas nunca vão para o navegador). Pontuação ponderada — A1 = 1 ponto, A2 = 2, B2 = 3 (máx. 30):
-   - 0–11 → **A1** · 12–21 → **A2** · 22–30 → **B2**
-4. O nível é gravado no perfil e o aluno vai para a sua trilha. Ele pode navegar pelas outras trilhas (com aviso de que não é o seu nível) e refazer o nivelamento quando quiser.
-5. Em cada módulo, o aluno abre PDFs, áudios e vídeos direto na página ou baixa qualquer material.
+2. Sem nível definido, faz o **teste de nivelamento**: 15 questões de gramática e vocabulário, 5 por faixa.
+3. A correção é feita **no servidor**. Pontuação ponderada (A1 = 1, A2 = 2, B2 = 3; máx. 30): 0–11 → **A1** · 12–21 → **A2** · 22–30 → **B2**.
+4. Vai para a trilha do seu nível; pode explorar as outras e refazer o nivelamento.
+5. Abre os materiais no visualizador (PDF, áudio, vídeo, Word, PowerPoint, Excel, ODT, TXT) ou baixa.
 
-**Administrador** (login `davi`, criado pelo seed)
-- Entra pelo mesmo formulário, usando o nome de usuário no campo "E-mail ou usuário".
-- Painel em `/admin`: cria e exclui módulos em cada trilha, envia arquivos associando trilha + módulo (com barra de progresso), remove materiais e vê a lista de alunos com o nível de cada um.
+**Administrador** (login por nome de usuário, criado pelo seed)
+- Painel em `/admin`: cria/exclui módulos, envia arquivos para trilha + módulo, visualiza e remove materiais, vê os alunos e seus níveis.
 
 ## Segurança do controle de acesso
 
-- **Todas as rotas `/api/admin/*` passam por `requireAdmin` no servidor**, antes até do `multer`: um aluno que chame a API diretamente recebe `403` e nenhum byte é gravado em disco (coberto pelos testes).
-- A página `/admin` e o script `/admin/admin.js` ficam fora de `public/` e só são entregues para sessões de admin; outros perfis são redirecionados.
-- O cadastro público sempre cria perfil `student`; não existe rota para promover usuários.
-- Materiais são servidos por `/api/materials/:id/download`, que exige sessão; o tipo MIME vem da lista branca do servidor, não do que o navegador enviou; nomes em disco são UUIDs (sem path traversal).
-- Login com limite de tentativas por IP + usuário e comparação de hash mesmo quando o usuário não existe (não revela contas existentes).
-- Cabeçalhos: CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`.
+- Todas as rotas `/api/admin/*` passam por `requireAdmin` **no servidor**: sem sessão de admin não se obtém URL de upload nem se registra material (coberto pelos testes).
+- A página `/admin` e o script dela ficam fora de `public/` e só são entregues a admins.
+- O cadastro público sempre cria perfil `student`; não há rota para promover usuários.
+- A chave `service_role` do Supabase só existe no servidor; o navegador recebe apenas URLs assinadas de curta duração.
+- Pré-visualizações de documentos são HTML estático com CSP `sandbox` e `default-src 'none'` (nenhum script roda).
+- Login com limite de tentativas e comparação de hash mesmo quando o usuário não existe.
 
 ## Estrutura
 
 ```
+api/index.js         Entrada da função serverless na Vercel
+vercel.json          Estáticos via CDN + rewrite do resto para a função
 src/
-  server.js          Express, cabeçalhos de segurança, rotas, páginas protegidas
-  config.js          Porta, caminhos, limites
-  db.js              Conexão SQLite + schema
-  auth.js            Hash de senha, sessões, requireAuth / requireAdmin / requirePlacement
-  placement.js       Banco de questões e correção do nivelamento
-  tracks.js          Metadados das trilhas e módulos iniciais
-  uploads.js         Multer, lista branca de tipos, armazenamento
+  app.js             Express: segurança, rotas, páginas protegidas
+  server.js          Servidor local (npm start)
+  config.js          Variáveis de ambiente e limites
+  db.js              Postgres (pg no Supabase / PGlite local) + schema
+  storage.js         Supabase Storage / disco local, URLs assinadas
+  auth.js            Hash de senha, sessões, requireAuth / requireAdmin
+  placement.js       Questões e correção do nivelamento
+  preview.js         Conversão de docx/pptx/xlsx/odt/txt para pré-visualização
   routes/            auth, placement, tracks, materials, admin
-scripts/seed.js      Cria o admin (hash) e os módulos padrão
-public/              Login/cadastro, nivelamento, trilha (CSS/JS)
+scripts/seed.js      Tabelas, admin, módulos padrão e bucket
+public/              Login/cadastro, nivelamento, trilha
 views/               Painel admin (servido apenas para admin)
-tests/api.test.js    Testes de integração
-data/                Banco SQLite (gerado)
-storage/uploads/     Arquivos enviados (gerado)
+tests/               Testes de integração
 ```
-
-## Produção
-
-- Rode atrás de um proxy com HTTPS e defina `NODE_ENV=production` (cookie `Secure`) e `TRUST_PROXY=1`.
-- Faça backup de `data/` e `storage/uploads/` juntos.
-- Ajuste `MAX_UPLOAD_MB` no `.env` (e o limite de corpo do proxy) conforme o tamanho dos vídeos.
-- Para várias instâncias, troque o SQLite por PostgreSQL e o disco local por um storage de objetos (S3 ou similar); as rotas não mudam.

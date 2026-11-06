@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "novera", "runtimeExecutable": "npm", "runtimeArgs": ["start"], "port": 3000 }
+    { "name": "novera", "runtimeExecutable": "npm", "runtimeArgs": ["start"], "port": 3000 },
+    { "name": "novera-3100", "runtimeExecutable": "node", "runtimeArgs": ["--env-file-if-exists=.env", "src/server.js"], "env": { "PORT": "3100" }, "port": 3100 }
   ]
 }

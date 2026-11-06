@@ -60,9 +60,10 @@ const Novera = (() => {
     return `${(bytes / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
   }
 
-  function formatDate(sqlDate) {
-    if (!sqlDate) return '';
-    const d = new Date(`${sqlDate.replace(' ', 'T')}Z`);
+  function formatDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 

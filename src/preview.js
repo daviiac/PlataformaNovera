@@ -13,7 +13,6 @@
  *   .txt   -> texto
  * Formatos binários antigos (.doc, .ppt, .xls, .rtf) não têm pré-visualização.
  */
-const fs = require('node:fs/promises');
 const path = require('node:path');
 const JSZip = require('jszip');
 const mammoth = require('mammoth');
@@ -22,8 +21,10 @@ const PREVIEW_EXTS = new Set(['.docx', '.pptx', '.xlsx', '.odt', '.txt']);
 const MAX_ROWS = 300;
 const MAX_COLS = 40;
 const MAX_SHEETS = 10;
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+// A resposta de uma função na Vercel tem limite de 4,5 MB: as imagens embutidas
+// (em base64, ~33% maiores) compartilham um orçamento total por documento.
+const IMAGE_BUDGET_BYTES = 2.5 * 1024 * 1024;
+const MAX_TEXT_BYTES = 1.5 * 1024 * 1024;
 
 const IMAGE_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp' };
 
@@ -45,8 +46,17 @@ function canPreview(originalName) {
 
 // ---------- Conversores ----------
 
-async function docxToHtml(filePath) {
-  const { value } = await mammoth.convertToHtml({ path: filePath });
+const imageBudget = () => ({ left: IMAGE_BUDGET_BYTES, take(n) { if (n > this.left) return false; this.left -= n; return true; } });
+
+async function docxToHtml(buf) {
+  const budget = imageBudget();
+  const { value } = await mammoth.convertToHtml({ buffer: buf }, {
+    convertImage: mammoth.images.imgElement(async (image) => {
+      const data = await image.read('base64');
+      if (!budget.take(data.length)) return { src: '', alt: '[imagem omitida na pré-visualização]' };
+      return { src: `data:${image.contentType};base64,${data}` };
+    }),
+  });
   // Mantém apenas links seguros.
   return value.replace(/href="([^"]*)"/g, (m, href) => (/^(https?:|mailto:|#)/i.test(href) ? `href="${href}" target="_blank" rel="noopener"` : ''));
 }
@@ -64,8 +74,9 @@ async function readRels(zip, relsPath) {
   return rels;
 }
 
-async function pptxToHtml(filePath) {
-  const zip = await JSZip.loadAsync(await fs.readFile(filePath));
+async function pptxToHtml(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const budget = imageBudget();
   const slideFiles = Object.keys(zip.files)
     .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
     .sort((a, b) => Number(a.match(/(\d+)\.xml$/)[1]) - Number(b.match(/(\d+)\.xml$/)[1]));
@@ -86,8 +97,8 @@ async function pptxToHtml(filePath) {
       const mime = IMAGE_MIME[path.extname(mediaPath).toLowerCase()];
       const media = zip.file(mediaPath);
       if (!mime || !media) continue;
-      const buf = await media.async('nodebuffer');
-      if (buf.length <= MAX_IMAGE_BYTES) images.push(`data:${mime};base64,${buf.toString('base64')}`);
+      const b64 = (await media.async('nodebuffer')).toString('base64');
+      if (budget.take(b64.length)) images.push(`data:${mime};base64,${b64}`);
     }
 
     const [title, ...rest] = paragraphs;
@@ -108,8 +119,8 @@ function colIndex(ref) {
   return [...letters].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0) - 1;
 }
 
-async function xlsxToHtml(filePath) {
-  const zip = await JSZip.loadAsync(await fs.readFile(filePath));
+async function xlsxToHtml(buf) {
+  const zip = await JSZip.loadAsync(buf);
   const shared = [];
   const ssFile = zip.file('xl/sharedStrings.xml');
   if (ssFile) {
@@ -161,8 +172,8 @@ async function xlsxToHtml(filePath) {
   return parts.join('') || '<p class="empty">Nenhuma planilha encontrada.</p>';
 }
 
-async function odtToHtml(filePath) {
-  const zip = await JSZip.loadAsync(await fs.readFile(filePath));
+async function odtToHtml(buf) {
+  const zip = await JSZip.loadAsync(buf);
   const xml = await zip.file('content.xml')?.async('string') || '';
   const blocks = [...xml.matchAll(/<text:(h|p)\b[^>]*>([\s\S]*?)<\/text:\1>/g)].map((m) => {
     const text = decodeXml(m[2].replace(/<text:tab\/>/g, '\t').replace(/<text:line-break\/>/g, '\n').replace(/<[^>]+>/g, ''));
@@ -171,15 +182,8 @@ async function odtToHtml(filePath) {
   return blocks.join('') || '<p class="empty">Documento sem texto.</p>';
 }
 
-async function txtToHtml(filePath) {
-  const handle = await fs.open(filePath, 'r');
-  try {
-    const buf = Buffer.alloc(MAX_TEXT_BYTES);
-    const { bytesRead } = await handle.read(buf, 0, MAX_TEXT_BYTES, 0);
-    return `<pre>${esc(buf.subarray(0, bytesRead).toString('utf8'))}</pre>`;
-  } finally {
-    await handle.close();
-  }
+async function txtToHtml(buf) {
+  return `<pre>${esc(buf.subarray(0, MAX_TEXT_BYTES).toString('utf8'))}</pre>`;
 }
 
 const CONVERTERS = { '.docx': docxToHtml, '.pptx': pptxToHtml, '.xlsx': xlsxToHtml, '.odt': odtToHtml, '.txt': txtToHtml };
@@ -206,11 +210,11 @@ const PAGE_CSS = `
 `;
 
 /** Gera a página HTML de pré-visualização (sem scripts). */
-async function buildPreviewPage(filePath, originalName, title) {
+async function buildPreviewPage(buffer, originalName, title) {
   const ext = path.extname(originalName).toLowerCase();
   const convert = CONVERTERS[ext];
   if (!convert) return null;
-  const body = await convert(filePath);
+  const body = await convert(buffer);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${PAGE_CSS}</style></head><body><main class="page">${body}</main></body></html>`;
 }
 

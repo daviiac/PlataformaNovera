@@ -24,7 +24,7 @@ function materialDto(m) {
     ext,
     mimeType: m.mime_type,
     kind: m.kind,
-    size: m.size_bytes,
+    size: Number(m.size_bytes),
     createdAt: m.created_at,
     preview,
     downloadUrl: `/api/materials/${m.id}/download`,
