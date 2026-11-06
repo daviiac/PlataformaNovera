@@ -68,6 +68,30 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_materials_module ON materials(module_id);
 `;
 
+/**
+ * Segurança no Supabase: tabelas do schema "public" podem ser expostas pela API REST
+ * pública (papéis anon/authenticated). Este app NÃO usa essa API — só o servidor fala
+ * com o banco, como dono das tabelas. Então:
+ *  - RLS ligado em todas as tabelas, sem políticas: anon/authenticated não veem nenhuma linha;
+ *  - privilégios revogados desses papéis (defesa em profundidade).
+ * O dono das tabelas ignora o RLS, por isso o servidor continua funcionando normalmente.
+ */
+const TABLES = ['users', 'sessions', 'placement_results', 'modules', 'materials'];
+const LOCKDOWN = [
+  ...TABLES.map((t) => `ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`),
+  `DO $$
+   BEGIN
+     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+       REVOKE ALL ON ${TABLES.join(', ')} FROM anon;
+     END IF;
+     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+       REVOKE ALL ON ${TABLES.join(', ')} FROM authenticated;
+     END IF;
+   END $$`,
+];
+
+const STATEMENTS = [...SCHEMA.split(';').map((s) => s.trim()).filter(Boolean), ...LOCKDOWN];
+
 let driverPromise = null;
 
 async function createDriver() {
@@ -115,7 +139,7 @@ function driver() {
   if (!driverPromise) {
     driverPromise = (async () => {
       const d = await createDriver();
-      for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
+      for (const stmt of STATEMENTS) {
         try {
           await d.query(stmt);
         } catch (err) {
@@ -147,4 +171,4 @@ async function close() {
   await d.end();
 }
 
-module.exports = { query, one, ready: driver, close };
+module.exports = { query, one, ready: driver, close, STATEMENTS };
