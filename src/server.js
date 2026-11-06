@@ -10,7 +10,7 @@ db.ready()
   .then(() => {
     const server = app.listen(PORT, () => {
       console.log(`Plataforma Novera rodando em http://localhost:${PORT}`);
-      console.log(`Banco: ${process.env.DATABASE_URL ? 'Postgres (DATABASE_URL)' : 'PGlite local (data/pglite)'} · Arquivos: ${storage.name}`);
+      console.log(`Banco: ${require('./config').DATABASE_URL ? 'Postgres (DATABASE_URL)' : 'PGlite local (data/pglite)'} · Arquivos: ${storage.name}`);
     });
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {

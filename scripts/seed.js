@@ -54,7 +54,7 @@ async function ensureDefaultModules() {
 
 async function main() {
   const reset = process.argv.includes('--reset-admin');
-  console.log(`Banco: ${process.env.DATABASE_URL ? 'Postgres (DATABASE_URL)' : 'PGlite local (data/pglite)'} · Arquivos: ${storage.name}`);
+  console.log(`Banco: ${require('../src/config').DATABASE_URL ? 'Postgres (DATABASE_URL)' : 'PGlite local (data/pglite)'} · Arquivos: ${storage.name}`);
 
   const admin = await ensureAdmin({
     username: process.env.ADMIN_USERNAME,

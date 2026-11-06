@@ -15,6 +15,7 @@ delete process.env.DATABASE_URL;
 delete process.env.SUPABASE_URL;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 delete process.env.VERCEL;
+for (const k of ['POSTGRES_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SECRET_KEY']) delete process.env[k];
 
 const app = require('../src/app');
 const db = require('../src/db');

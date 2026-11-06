@@ -3,7 +3,8 @@
 const path = require('node:path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const { ROOT_DIR, IS_VERCEL } = require('./config');
+const config = require('./config');
+const { ROOT_DIR, IS_VERCEL } = config;
 const { loadUser } = require('./auth');
 const { storage } = require('./storage');
 
@@ -57,11 +58,13 @@ app.get('/api/health', async (req, res) => {
   res.status(database === 'ok' ? 200 : 503).json({
     database,
     env: {
-      DATABASE_URL: Boolean(process.env.DATABASE_URL),
-      SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
-      SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-      SUPABASE_BUCKET: process.env.SUPABASE_BUCKET || null,
+      DATABASE_URL: Boolean(config.DATABASE_URL),
+      SUPABASE_URL: Boolean(config.SUPABASE_URL),
+      SUPABASE_SERVICE_ROLE_KEY: Boolean(config.SUPABASE_SERVICE_ROLE_KEY),
+      SUPABASE_PUBLISHABLE_KEY: Boolean(config.SUPABASE_PUBLISHABLE_KEY),
+      SUPABASE_BUCKET: config.SUPABASE_BUCKET,
     },
+    project: (config.SUPABASE_URL.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) || [])[1] || null,
     storage: storage.name,
     region: process.env.VERCEL_REGION || null,
   });
