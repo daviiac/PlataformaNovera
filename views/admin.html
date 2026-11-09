@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
 </head>
 <body>
   <header class="topbar" id="topbar"></header>
@@ -87,6 +88,71 @@
       </section>
     </div>
 
+    <section class="card mt" id="atividades">
+      <div class="section-title">
+        <h2>Atividades com vídeo do YouTube</h2>
+        <a class="btn btn-ghost btn-sm" href="/atividades">Ver como aluno →</a>
+      </div>
+      <p class="muted small">Listen, Ditado, Gramática, Monte a Frase, Corrigir Textos e Worksheets já vêm prontos com conteúdo da Novera. Aqui você publica as atividades que dependem de um vídeo do YouTube.</p>
+
+      <form id="act-form" novalidate>
+        <div class="form-row">
+          <div class="field">
+            <label for="act-type">Tipo</label>
+            <select id="act-type">
+              <option value="quiz">🎬 Quiz em vídeo</option>
+              <option value="song">🎵 Música (letra com lacunas)</option>
+              <option value="video_lesson">📺 Videoaula</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="act-level">Nível</label>
+            <select id="act-level"><option>A1</option><option>A2</option><option>B2</option></select>
+          </div>
+        </div>
+        <div class="field"><label for="act-title">Título</label><input id="act-title" maxlength="140" placeholder="Ex.: Ordering food — Quiz"></div>
+        <div class="field"><label for="act-desc">Descrição (opcional)</label><input id="act-desc" maxlength="400" placeholder="O que o aluno vai praticar"></div>
+        <div class="field">
+          <label for="act-youtube">Link do vídeo no YouTube</label>
+          <div class="q-row-head">
+            <input id="act-youtube" placeholder="https://www.youtube.com/watch?v=…">
+            <button type="button" class="btn btn-ghost" id="act-load">Carregar vídeo</button>
+          </div>
+          <span class="hint">Use vídeos que permitem incorporação. O vídeo toca no player oficial do YouTube.</span>
+        </div>
+        <div class="preview-box" id="act-preview" hidden><div class="video-box"><div id="act-yt"></div></div></div>
+
+        <!-- Quiz -->
+        <div id="ed-quiz" class="mt">
+          <div class="section-title"><h3>Perguntas</h3><button type="button" class="btn btn-ghost btn-sm" id="q-add">+ Adicionar pergunta</button></div>
+          <p class="hint">O vídeo pausa no tempo indicado e mostra a pergunta. Toque o vídeo acima e use “⏱ tempo atual” para preencher o minuto exato.</p>
+          <div id="q-rows"></div>
+        </div>
+
+        <!-- Música -->
+        <div id="ed-song" class="mt" hidden>
+          <div class="field"><label for="song-artist">Artista (opcional)</label><input id="song-artist" maxlength="120"></div>
+          <div class="field">
+            <label for="song-lyrics">Letra — uma linha por verso, com o tempo no início e as lacunas entre colchetes</label>
+            <textarea id="song-lyrics" rows="10" placeholder="0:12 Every [morning] I wake up early&#10;0:18 And I [walk] along the river"></textarea>
+            <span class="hint">O tempo (m:ss) é opcional, mas permite ao aluno clicar no verso para ouvi-lo. Respeite os direitos autorais: use letras que você pode usar em aula.</span>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="song-time">⏱ Inserir tempo atual na linha</button>
+        </div>
+
+        <!-- Videoaula -->
+        <div id="ed-video_lesson" class="mt" hidden>
+          <div class="field"><label for="vl-summary">Resumo da aula (opcional)</label><textarea id="vl-summary" rows="4" maxlength="4000"></textarea></div>
+        </div>
+
+        <p class="alert" id="act-msg" role="status"></p>
+        <button class="btn" type="submit">Publicar atividade</button>
+      </form>
+
+      <h3 class="mt">Publicadas</h3>
+      <div class="admin-act-list" id="act-list"></div>
+    </section>
+
     <section class="card mt">
       <div class="section-title"><h2>Alunos cadastrados</h2><span class="small muted" id="students-count"></span></div>
       <div id="students"></div>
@@ -94,6 +160,8 @@
   </main>
 
   <script src="/js/common.js"></script>
+  <script src="/js/act-common.js"></script>
   <script src="/admin/admin.js"></script>
+  <script src="/admin/admin-activities.js"></script>
 </body>
 </html>

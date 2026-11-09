@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Atividade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container act-page">
+    <a class="back-link" id="back-link" href="/atividades">← Voltar</a>
+    <div class="act-head">
+      <div>
+        <span class="eyebrow" id="act-type">Atividade</span>
+        <h1 id="act-title">Carregando…</h1>
+        <p class="muted" id="act-desc"></p>
+      </div>
+      <div class="act-head-tags" id="act-tags"></div>
+    </div>
+    <p class="alert alert-error" id="act-error" role="alert"></p>
+    <div id="stage"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/act-common.js"></script>
+  <script src="/js/act-player.js"></script>
+</body>
+</html>

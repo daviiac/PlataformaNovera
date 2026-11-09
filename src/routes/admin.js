@@ -152,6 +152,35 @@ router.delete('/materials/:id', ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- Atividades com vídeo do YouTube (quiz, música, videoaula) ----------
+
+router.get('/activities', ah(async (req, res) => {
+  const rows = await db.query(`
+    SELECT a.id, a.type, a.level, a.title, a.description, a.data->>'youtubeId' AS youtube_id, a.created_at,
+           (SELECT COUNT(*)::int FROM activity_attempts t WHERE t.activity_key = 'a-' || a.id) AS attempts
+    FROM activities a ORDER BY a.created_at DESC, a.id DESC
+  `);
+  res.json({ activities: rows });
+}));
+
+router.post('/activities', ah(async (req, res) => {
+  const { validateAdminActivity } = require('../activities/catalog');
+  const a = validateAdminActivity(req.body);
+  const row = await db.one(
+    'INSERT INTO activities (type, level, title, description, data, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+    [a.type, a.level, a.title, a.description, JSON.stringify(a.data), req.user.id],
+  );
+  res.status(201).json({ ok: true, key: `a-${row.id}` });
+}));
+
+router.delete('/activities/:id', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const row = Number.isInteger(id) ? await db.one('DELETE FROM activities WHERE id = $1 RETURNING id', [id]) : null;
+  if (!row) return res.status(404).json({ error: 'Atividade não encontrada.' });
+  await db.query('DELETE FROM activity_attempts WHERE activity_key = $1', [`a-${id}`]);
+  res.json({ ok: true });
+}));
+
 // ---------- Alunos ----------
 
 router.get('/students', ah(async (req, res) => {

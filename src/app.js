@@ -17,14 +17,18 @@ if (IS_VERCEL || process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 // então o domínio do Storage é liberado para upload (connect), mídia e PDF (frame).
 // (As páginas estáticas servidas pela CDN recebem os mesmos cabeçalhos via vercel.json.)
 const storageOrigin = storage.origin ? ` ${storage.origin}` : '';
+// YouTube: só o player oficial (script da API, iframe sem cookies e miniaturas).
+const YT_SCRIPT = ' https://www.youtube.com https://s.ytimg.com';
+const YT_FRAME = ' https://www.youtube-nocookie.com https://www.youtube.com';
+const YT_IMG = ' https://i.ytimg.com';
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  `script-src 'self'${YT_SCRIPT}`,
   "style-src 'self' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  `img-src 'self' data:${storageOrigin}`,
+  `img-src 'self' data:${storageOrigin}${YT_IMG}`,
   `media-src 'self'${storageOrigin}`,
-  `frame-src 'self'${storageOrigin}`,
+  `frame-src 'self'${storageOrigin}${YT_FRAME}`,
   `connect-src 'self'${storageOrigin}`,
   "object-src 'none'",
   "base-uri 'self'",
@@ -106,6 +110,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/placement', require('./routes/placement'));
 app.use('/api/tracks', require('./routes/tracks'));
 app.use('/api/materials', require('./routes/materials'));
+app.use('/api/activities', require('./routes/activities'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
 
@@ -119,6 +124,7 @@ const adminPage = (file) => (req, res) => {
 };
 app.get(['/admin', '/admin.html'], adminPage('admin.html'));
 app.get('/admin/admin.js', adminPage('admin.js'));
+app.get('/admin/admin-activities.js', adminPage('admin-activities.js'));
 
 // Na Vercel os arquivos de /public saem direto da CDN; localmente o Express os serve.
 app.use(express.static(path.join(ROOT_DIR, 'public'), { extensions: ['html'] }));

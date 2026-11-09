@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Atividades</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container">
+    <!-- Hub: todos os tipos -->
+    <section id="hub" hidden>
+      <div class="page-head">
+        <span class="eyebrow">Pratique do seu jeito</span>
+        <h1>Atividades <span class="hl">Novera</span></h1>
+        <p class="muted">Escolha um tipo de atividade. Tudo é corrigido na hora e o seu melhor resultado fica salvo.</p>
+      </div>
+      <div class="type-grid" id="type-grid"></div>
+    </section>
+
+    <!-- Lista de um tipo -->
+    <section id="list" hidden>
+      <a class="back-link" href="/atividades" id="back-hub">← Todas as atividades</a>
+      <div class="list-head">
+        <div class="type-ico-lg" id="list-ico" aria-hidden="true"></div>
+        <div>
+          <span class="eyebrow" id="list-eyebrow">Atividades</span>
+          <h1 id="list-title"></h1>
+          <p class="muted" id="list-desc"></p>
+        </div>
+      </div>
+
+      <div class="list-tools">
+        <div class="segmented" id="level-filter" role="group" aria-label="Filtrar por nível">
+          <button type="button" data-level="">Todos</button>
+          <button type="button" data-level="A1">A1</button>
+          <button type="button" data-level="A2">A2</button>
+          <button type="button" data-level="B2">B2</button>
+        </div>
+        <div class="field search-field">
+          <label class="sr-only" for="search">Buscar</label>
+          <input id="search" type="search" placeholder="Buscar por título…">
+        </div>
+      </div>
+
+      <p class="alert alert-error" id="list-error" role="alert"></p>
+      <div class="act-grid" id="act-grid"></div>
+    </section>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/act-common.js"></script>
+  <script src="/js/activities.js"></script>
+</body>
+</html>

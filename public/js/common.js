@@ -75,22 +75,33 @@ const Novera = (() => {
   function renderTopbar(user, active) {
     const el = document.getElementById('topbar');
     if (!el) return;
-    const links = [];
-    if (user.role === 'admin') {
-      links.push(['admin', '/admin', 'Painel admin']);
-      links.push(['trilha', '/trilha', 'Trilhas']);
-    } else {
-      links.push(['trilha', '/trilha', 'Minha trilha']);
-      links.push(['nivelamento', '/nivelamento', 'Nivelamento']);
+    const isAdmin = user.role === 'admin';
+    const placed = isAdmin || Boolean(user.level);
+    const link = (key, href, label) => `<a href="${href}" class="${key === active ? 'active' : ''}">${label}</a>`;
+    const items = [];
+    if (isAdmin) items.push(link('admin', '/admin', 'Painel admin'));
+    items.push(link('trilha', '/trilha', isAdmin ? 'Trilhas' : 'Minha trilha'));
+    if (placed) {
+      items.push(`
+        <div class="nav-dd">
+          <button type="button" class="nav-dd-btn ${active === 'atividades' ? 'active' : ''}" aria-expanded="false" aria-haspopup="true">
+            Atividades <span class="nav-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-menu" role="menu" hidden>
+            ${ACTIVITY_MENU.map((t) => `<a role="menuitem" href="/atividades?tipo=${t.key}"><span class="nav-menu-ico" aria-hidden="true">${t.icon}</span>${t.label}</a>`).join('')}
+          </div>
+        </div>`);
+      items.push(link('worksheets', '/atividades?tipo=worksheet', 'Worksheets'));
     }
+    if (!isAdmin) items.push(link('nivelamento', '/nivelamento', 'Nivelamento'));
     const levelBadge = user.level ? `<span class="level-badge level-${esc(user.level)}">${esc(user.level)}</span>` : '';
-    const roleTag = user.role === 'admin' ? '<span class="tag">Admin</span>' : '';
+    const roleTag = isAdmin ? '<span class="tag">Admin</span>' : '';
 
     el.innerHTML = `
       <div class="topbar-inner">
         <a class="brand" href="${homeFor(user)}">${BRAND_INNER}</a>
         <nav class="nav">
-          ${links.map(([key, href, label]) => `<a href="${href}" class="${key === active ? 'active' : ''}">${label}</a>`).join('')}
+          ${items.join('')}
         </nav>
         <div class="user-box">
           ${levelBadge}${roleTag}
@@ -99,7 +110,51 @@ const Novera = (() => {
         </div>
       </div>`;
     el.querySelector('#logout-btn').addEventListener('click', logout);
+    setupDropdown(el.querySelector('.nav-dd'));
   }
+
+  /** Submenu do topo: abre por clique/teclado e fica dentro da tela (inclusive no celular). */
+  function setupDropdown(dd) {
+    if (!dd) return;
+    const btn = dd.querySelector('.nav-dd-btn');
+    const menu = dd.querySelector('.nav-menu');
+    const place = () => {
+      const r = btn.getBoundingClientRect();
+      const w = Math.min(280, window.innerWidth - 16);
+      menu.style.width = `${w}px`;
+      menu.style.top = `${r.bottom + 8}px`;
+      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+    };
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    const open = () => { place(); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); if (menu.hidden) open(); else close(); });
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(); menu.querySelector('a')?.focus(); }
+    });
+    menu.addEventListener('keydown', (e) => {
+      const links = [...menu.querySelectorAll('a')];
+      const i = links.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); links[(i + 1) % links.length].focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); links[(i - 1 + links.length) % links.length].focus(); }
+      if (e.key === 'Escape') { close(); btn.focus(); }
+    });
+    document.addEventListener('click', (e) => { if (!dd.contains(e.target)) close(); });
+    window.addEventListener('resize', () => { if (!menu.hidden) place(); });
+    window.addEventListener('scroll', () => { if (!menu.hidden) place(); }, { passive: true });
+  }
+
+  /** Itens do submenu "Atividades" (Worksheets fica como link próprio no menu). */
+  const ACTIVITY_MENU = [
+    { key: 'quiz', icon: '🎬', label: 'Quiz em vídeo' },
+    { key: 'song', icon: '🎵', label: 'Música' },
+    { key: 'listen', icon: '🎧', label: 'Listen' },
+    { key: 'dictation', icon: '✍️', label: 'Ditado' },
+    { key: 'grammar_lesson', icon: '📖', label: 'Estudo de Gramática' },
+    { key: 'grammar_quiz', icon: '🧠', label: 'Quiz de Gramática' },
+    { key: 'word_order', icon: '🧩', label: 'Monte a Frase' },
+    { key: 'text_correction', icon: '🔍', label: 'Corrigir Textos' },
+    { key: 'video_lesson', icon: '📺', label: 'Videoaulas' },
+  ];
 
   let toastTimer;
   function toast(message) {
