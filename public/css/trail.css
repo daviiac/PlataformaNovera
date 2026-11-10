@@ -22,24 +22,11 @@
 .space-content h1 .hl { color: var(--lv-a); }
 .space-content > p { max-width: 62ch; }
 
-.star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: 0.7; animation: twinkle 3.2s ease-in-out infinite; }
-.star.big { width: 3px; height: 3px; box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8); }
-@keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
-
-.shooting { position: absolute; width: 140px; height: 2px; border-radius: 2px; opacity: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff); transform: rotate(-24deg); animation: shoot 7s ease-in infinite; }
-.shooting.s1 { top: 12%; left: 60%; animation-delay: 1s; }
-.shooting.s2 { top: 30%; left: 20%; animation-delay: 4s; }
-.shooting.s3 { top: 6%; left: 35%; animation-delay: 6.2s; }
-@keyframes shoot { 0% { opacity: 0; translate: 0 0; } 4% { opacity: 1; } 12% { opacity: 0; translate: -260px 120px; } 100% { opacity: 0; translate: -260px 120px; } }
-
-.rocket { position: absolute; font-size: 1.9rem; filter: drop-shadow(0 0 10px rgba(255, 180, 80, 0.7)); }
-.rocket.r1 { bottom: -40px; left: -40px; animation: fly1 16s linear infinite; }
-.rocket.r2 { bottom: -40px; left: 55%; font-size: 1.3rem; animation: fly2 22s linear infinite; animation-delay: 6s; }
-.rocket.r3 { top: 18%; right: -60px; font-size: 1.6rem; filter: drop-shadow(0 0 10px rgba(120, 220, 255, 0.7)); animation: ufo 26s linear infinite; animation-delay: 3s; }
-@keyframes fly1 { 0% { transform: translate(0, 0) rotate(0deg); } 100% { transform: translate(130vw, -520px) rotate(8deg); } }
-@keyframes fly2 { 0% { transform: translate(0, 0); } 100% { transform: translate(40vw, -560px); } }
-@keyframes ufo { 0% { transform: translate(0, 0); } 50% { transform: translate(-70vw, 40px); } 100% { transform: translate(-140vw, -10px); } }
+/* estrelas, estrelas cadentes e foguetes: estilos globais em styles.css */
+.space .rocket.r1 { animation-name: fly1-box; }
+.space .rocket.r2 { animation-name: fly2-box; }
+@keyframes fly1-box { 0% { transform: translate(0, 0) rotate(0deg); } 100% { transform: translate(130vw, -520px) rotate(8deg); } }
+@keyframes fly2-box { 0% { transform: translate(0, 0); } 100% { transform: translate(40vw, -560px); } }
 .planet-deco { position: absolute; border-radius: 50%; }
 .planet-deco.p1 { width: 120px; height: 120px; right: 4%; top: 18%;
   background: radial-gradient(circle at 30% 30%, var(--lv-a), transparent 70%), radial-gradient(circle at 70% 70%, var(--lv-b), #1d1035 75%);

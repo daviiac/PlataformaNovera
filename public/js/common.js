@@ -284,6 +284,31 @@ const Novera = (() => {
 
   const BRAND_INNER = '<span class="brand-mark">N</span><span class="brand-text"><strong>NOVERA</strong><span>ACADEMY</span></span>';
 
+  /**
+   * Fundo espacial de todas as páginas (o mesmo clima da trilha): imagem do cosmos fixa
+   * + estrelas piscando, estrelas cadentes e foguetes cruzando a tela.
+   */
+  function mountCosmos() {
+    if (document.querySelector('.cosmos')) return;
+    const el = document.createElement('div');
+    el.className = 'cosmos';
+    el.setAttribute('aria-hidden', 'true');
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    let html = '<div class="cosmos-img"></div>';
+    for (let i = 0; i < 46; i += 1) html += `<i class="star${Math.random() < 0.18 ? ' big' : ''}"></i>`;
+    html += '<i class="shooting s1"></i><i class="shooting s2"></i><i class="shooting s3"></i>';
+    html += '<span class="rocket r1">🚀</span><span class="rocket r2">🚀</span><span class="rocket r3">🛸</span>';
+    el.innerHTML = html;
+    // Posições via CSSOM (a CSP não permite estilo inline no HTML).
+    el.querySelectorAll('.star').forEach((s) => {
+      s.style.left = `${rnd(0, 100).toFixed(1)}%`;
+      s.style.top = `${rnd(0, 100).toFixed(1)}%`;
+      s.style.animationDelay = `${rnd(0, 4).toFixed(2)}s`;
+    });
+    document.body.prepend(el);
+  }
+  if (document.body) mountCosmos(); else document.addEventListener('DOMContentLoaded', mountCosmos);
+
   return {
     api, ApiError, currentUser, requireUser, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
     KIND_LABEL, iconLabel, openViewer, BRAND_INNER,
