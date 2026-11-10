@@ -94,12 +94,28 @@
 .map-side strong { color: var(--lv-a); font-family: Georgia, serif; font-size: 1.15rem; }
 .map-side span { font-size: 0.78rem; color: var(--muted); }
 
-.map-rows { display: grid; gap: 1.6rem; }
+.map-rows { position: relative; display: grid; gap: 1rem; padding: 0 1.4rem; }
 .map-row { position: relative; display: grid; align-items: stretch; }
 .map-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
 .map-path { fill: none; stroke: var(--lv-a); stroke-width: 3.5; stroke-dasharray: 12 10; stroke-linecap: round; opacity: 0.9; }
 
-.map-node { position: relative; z-index: 1; display: grid; grid-template-rows: 112px 100px 112px; justify-items: center; }
+/* Foguete que percorre a trilha da primeira à última aula, em loop. */
+.map-rocket {
+  position: absolute; left: 0; top: 0; z-index: 3; display: block; font-size: 26px; line-height: 1; pointer-events: none;
+  offset-anchor: center; offset-rotate: auto 45deg; offset-distance: 0%;
+  animation: rocket-fly 20s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 170, 70, 0.85)) drop-shadow(0 0 14px rgba(169, 123, 255, 0.6));
+}
+@keyframes rocket-fly {
+  0% { offset-distance: 0%; opacity: 0; }
+  3% { opacity: 1; }
+  96% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+.map-rocket[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .map-rocket { display: none; } }
+
+.map-node { position: relative; z-index: 1; display: grid; grid-template-rows: 84px 76px 84px; justify-items: center; }
 .slot { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; width: 100%; padding: 0 0.25rem; }
 .slot.top { justify-content: flex-end; }
 .slot.bottom { justify-content: flex-start; }

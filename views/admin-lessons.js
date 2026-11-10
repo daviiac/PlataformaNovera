@@ -22,7 +22,7 @@
           <strong>${esc(l.title)}</strong>
           <div class="lesson-link">
             <label class="sr-only" for="link-${level}-${l.number}">Link da aula ${l.number}</label>
-            <input id="link-${level}-${l.number}" type="url" placeholder="https://www.canva.com/design/…/view" value="${esc(l.url)}">
+            <input id="link-${level}-${l.number}" type="url" placeholder="Link público de visualização: https://www.canva.com/design/…/view" value="${esc(l.url)}">
             <button type="button" class="btn btn-ghost btn-sm" data-save>Salvar</button>
             ${l.url ? `<a class="btn btn-ghost btn-sm" href="${esc(l.url)}" target="_blank" rel="noopener">Testar</a>` : ''}
           </div>

@@ -95,32 +95,43 @@
       </div>`;
   }
 
+  // Um único caminho tracejado ligando a aula 1 até a última (em "zigue-zague": as fileiras
+  // alternam o sentido e se ligam por uma curva na lateral), com o foguete percorrendo-o em loop.
   function drawPaths() {
-    document.querySelectorAll('.map-row').forEach((row) => {
-      const svg = row.querySelector('svg');
-      const box = row.getBoundingClientRect();
-      const pts = [...row.querySelectorAll('.dot')].map((d) => {
-        const r = d.getBoundingClientRect();
-        return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top];
-      });
-      if (!pts.length) return;
-      svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
-      const vertical = row.classList.contains('vertical');
-      let d;
-      if (vertical) {
-        d = `M ${pts[0][0]} 0 ` + pts.map(([x, y]) => `L ${x} ${y}`).join(' ') + ` L ${pts[pts.length - 1][0]} ${box.height}`;
-      } else {
-        const all = [[0, pts[0][1] + (pts[0][1] < box.height / 2 ? 18 : -18)], ...pts, [box.width, pts[pts.length - 1][1] + (pts[pts.length - 1][1] < box.height / 2 ? 18 : -18)]];
-        d = `M ${all[0][0]} ${all[0][1]}`;
-        for (let k = 1; k < all.length; k += 1) {
-          const [x0, y0] = all[k - 1];
-          const [x1, y1] = all[k];
-          const mx = (x0 + x1) / 2;
-          d += ` C ${mx} ${y0}, ${mx} ${y1}, ${x1} ${y1}`;
-        }
-      }
-      svg.innerHTML = `<path d="${d}" class="map-path"/>`;
+    const wrap = $('map-rows');
+    const svg = wrap.querySelector('.map-svg');
+    const rocket = wrap.querySelector('.map-rocket');
+    if (!svg) return;
+    const box = wrap.getBoundingClientRect();
+    const dots = [...wrap.querySelectorAll('.dot')];
+    if (!dots.length || !box.width) return;
+    const pts = dots.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - box.left, y: r.top + r.height / 2 - box.top, row: Number(el.closest('.map-row').dataset.row) };
     });
+    svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+    const R = 46; // quanto a curva entre fileiras sai para a lateral
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let k = 1; k < pts.length; k += 1) {
+      const a = pts[k - 1];
+      const b = pts[k];
+      if (a.row !== b.row) {
+        const side = a.row % 2 === 0 ? Math.max(a.x, b.x) + R : Math.min(a.x, b.x) - R;
+        d += ` C ${side} ${a.y}, ${side} ${b.y}, ${b.x} ${b.y}`;
+      } else if (Math.abs(a.x - b.x) < 2) {
+        d += ` L ${b.x} ${b.y}`; // celular: coluna única
+      } else {
+        const mx = (a.x + b.x) / 2;
+        d += ` C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`;
+      }
+    }
+    svg.innerHTML = `<path d="${d}" class="map-path"/>`;
+    if (rocket && pts.length > 1) {
+      const len = svg.querySelector('path').getTotalLength();
+      rocket.style.offsetPath = `path("${d}")`;
+      rocket.style.animationDuration = `${Math.max(8, len / 110).toFixed(1)}s`;
+      rocket.hidden = false;
+    }
   }
 
   function renderMap() {
@@ -129,12 +140,22 @@
     const rows = [];
     if (!n) rows.push(lessons.map((l, i) => i));
     else for (let i = 0; i < lessons.length; i += n) rows.push(lessons.slice(i, i + n).map((_, k) => i + k));
-    $('map-rows').innerHTML = rows.map((idx) => `
-      <div class="map-row ${n ? '' : 'vertical'}" ${n ? `data-cols="${idx.length}"` : ''}>
-        <svg class="map-svg" aria-hidden="true" preserveAspectRatio="none"></svg>
+    $('map-rows').innerHTML = `
+      <svg class="map-svg" aria-hidden="true" preserveAspectRatio="none"></svg>
+      <span class="map-rocket" aria-hidden="true" hidden>🚀</span>
+      ${rows.map((idx, r) => `
+      <div class="map-row ${n ? '' : 'vertical'}" data-row="${r}" ${n ? `data-cols="${idx.length}"` : ''}>
         ${idx.map((i) => nodeHtml(lessons[i], i)).join('')}
-      </div>`).join('');
-    document.querySelectorAll('.map-row[data-cols]').forEach((r) => { r.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`; });
+      </div>`).join('')}`;
+    document.querySelectorAll('.map-row[data-cols]').forEach((row) => {
+      row.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+      // Fileiras ímpares andam da direita para a esquerda (o caminho continua sem cortar a tela).
+      const reverse = Number(row.dataset.row) % 2 === 1;
+      [...row.querySelectorAll('.map-node')].forEach((node, k) => {
+        node.style.gridRow = '1';
+        node.style.gridColumn = String(reverse ? n - k : k + 1);
+      });
+    });
     document.querySelectorAll('[data-color]').forEach((el) => {
       if (el.classList.contains('dot') || el.classList.contains('lesson-card')) el.style.setProperty('--c', el.dataset.color);
       if (el.classList.contains('map-node')) el.style.setProperty('--c', el.dataset.color);
@@ -159,13 +180,52 @@
     const card = e.target.closest('[data-lesson]');
     if (card) {
       const l = lessons[Number(card.dataset.lesson)];
-      if (l.url) window.open(l.url, '_blank', 'noopener');
+      if (l.embed) openPresentation(l);
+      else if (l.url) window.open(l.url, '_blank', 'noopener');
       else toast('A apresentação desta aula estará disponível em breve.');
       return;
     }
     const hw = e.target.closest('[data-hw]');
     if (hw) openHomework(lessons[Number(hw.dataset.hw)]);
   });
+
+  // ------------------------------------------------------------ apresentação (Canva, só visualização)
+  function openPresentation(lesson) {
+    const back = document.activeElement;
+    const el = document.createElement('div');
+    el.className = 'viewer';
+    el.innerHTML = `
+      <div class="viewer-panel" role="dialog" aria-modal="true" aria-label="${esc(lesson.title)}">
+        <div class="viewer-head">
+          <div class="mat-icon kind-video">AULA</div>
+          <div class="grow">
+            <strong>${esc(current)} · ${String(lesson.number).padStart(2, '0')} — ${esc(lesson.title)}</strong>
+            <span class="meta">Use as setas para passar os slides · ⛶ no canto para tela cheia</span>
+          </div>
+          <div class="viewer-actions">
+            <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Fechar">✕</button>
+          </div>
+        </div>
+        <div class="viewer-body">
+          <div class="viewer-loading">Carregando apresentação…</div>
+          <iframe class="canva-frame" src="${esc(lesson.embed)}" title="${esc(lesson.title)}"
+                  allow="fullscreen" allowfullscreen loading="eager" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+      </div>`;
+    const close = () => {
+      el.remove();
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('viewer-open');
+      back?.focus();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('[data-close]')) close(); });
+    el.querySelector('iframe').addEventListener('load', () => el.querySelector('.viewer-loading')?.remove(), { once: true });
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('viewer-open');
+    document.body.appendChild(el);
+    el.querySelector('[data-close]').focus();
+  }
 
   // ------------------------------------------------------------ homework
   const hwMaterial = (h) => ({

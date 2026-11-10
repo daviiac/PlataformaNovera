@@ -100,8 +100,13 @@ test('admin publica link da aula e importa homework pelo nome do arquivo', async
   const a = await login(ADMIN.user, ADMIN.pass);
   assert.equal((await a('PUT', '/api/admin/lessons/A1/2/link', { json: { url: 'javascript:alert(1)' } })).status, 400);
   assert.equal((await a('PUT', '/api/admin/lessons/A1/99/link', { json: { url: 'https://x.com' } })).status, 404);
-  const link = await a('PUT', '/api/admin/lessons/A1/2/link', { json: { url: 'https://www.canva.com/design/DAExemplo/view' } });
+  // Link de EDIÇÃO do Canva é recusado (deixaria o aluno editar); o de visualização é padronizado.
+  const edit = await a('PUT', '/api/admin/lessons/A1/2/link', { json: { url: 'https://www.canva.com/design/DAExemplo1/ChaveEdicao123/edit' } });
+  assert.equal(edit.status, 400);
+  assert.match(edit.data.error, /EDIÇÃO/);
+  const link = await a('PUT', '/api/admin/lessons/A1/2/link', { json: { url: 'https://www.canva.com/design/DAExemplo1/ChaveVisual123/view?utm_content=x' } });
   assert.equal(link.status, 200);
+  assert.equal(link.data.url, 'https://www.canva.com/design/DAExemplo1/ChaveVisual123/view');
 
   const unknown = await a('POST', '/api/admin/homework/uploads', { json: { fileName: 'qualquer.pdf', size: 10 } });
   assert.equal(unknown.data.code, 'UNKNOWN_FILE');
@@ -117,7 +122,8 @@ test('admin publica link da aula e importa homework pelo nome do arquivo', async
   // Aluno do nível vê o link e baixa o PDF; aluno de nível sem acesso não baixa.
   const s = await student('hw@exemplo.com', 'A1');
   const map = await s('GET', '/api/tracks/A1/lessons');
-  assert.equal(map.data.lessons[1].url, 'https://www.canva.com/design/DAExemplo/view');
+  assert.equal(map.data.lessons[1].url, 'https://www.canva.com/design/DAExemplo1/ChaveVisual123/view');
+  assert.equal(map.data.lessons[1].embed, 'https://www.canva.com/design/DAExemplo1/ChaveVisual123/view?embed');
   assert.equal(map.data.lessons[1].homework.find((h) => h.key === hw.key).available, true);
   const file = await s('GET', `/api/tracks/homework/${hw.key}/file`);
   assert.equal(file.status, 200);

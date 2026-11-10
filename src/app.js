@@ -21,6 +21,8 @@ const storageOrigin = storage.origin ? ` ${storage.origin}` : '';
 const YT_SCRIPT = ' https://www.youtube.com https://s.ytimg.com';
 const YT_FRAME = ' https://www.youtube-nocookie.com https://www.youtube.com';
 const YT_IMG = ' https://i.ytimg.com';
+// Canva: apresentações das aulas no modo de visualização (?embed).
+const CANVA_FRAME = ' https://www.canva.com';
 const CSP = [
   "default-src 'self'",
   `script-src 'self'${YT_SCRIPT}`,
@@ -28,7 +30,7 @@ const CSP = [
   "font-src 'self' https://fonts.gstatic.com",
   `img-src 'self' data:${storageOrigin}${YT_IMG}`,
   `media-src 'self'${storageOrigin}`,
-  `frame-src 'self'${storageOrigin}${YT_FRAME}`,
+  `frame-src 'self'${storageOrigin}${YT_FRAME}${CANVA_FRAME}`,
   `connect-src 'self'${storageOrigin}`,
   "object-src 'none'",
   "base-uri 'self'",

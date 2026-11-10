@@ -204,6 +204,7 @@ router.get('/lessons', ah(async (req, res) => {
 /** Link do material (apresentação do Canva ou outro link público) de uma aula. */
 router.put('/lessons/:level/:n/link', ah(async (req, res) => {
   const { LESSONS } = require('../lessons/catalog');
+  const { normalizeLessonUrl } = require('../lessons/canva');
   const level = String(req.params.level).toUpperCase();
   const n = Number(req.params.n);
   if (!LESSONS[level]?.some((l) => l.n === n)) return res.status(404).json({ error: 'Aula não encontrada.' });
@@ -212,14 +213,13 @@ router.put('/lessons/:level/:n/link', ah(async (req, res) => {
     await db.query('DELETE FROM lesson_links WHERE level = $1 AND lesson = $2', [level, n]);
     return res.json({ ok: true, url: null });
   }
-  let u;
-  try { u = new URL(raw); } catch { return res.status(400).json({ error: 'Cole um link completo (https://…).' }); }
-  if (u.protocol !== 'https:') return res.status(400).json({ error: 'Use um link https://.' });
+  const result = await normalizeLessonUrl(raw);
+  if (result.error) return res.status(400).json({ error: result.error });
   await db.query(`
     INSERT INTO lesson_links (level, lesson, url, updated_at) VALUES ($1, $2, $3, now())
     ON CONFLICT (level, lesson) DO UPDATE SET url = EXCLUDED.url, updated_at = now()
-  `, [level, n, u.toString()]);
-  res.json({ ok: true, url: u.toString() });
+  `, [level, n, result.url]);
+  res.json({ ok: true, url: result.url });
 }));
 
 /** 1) Pede a URL de envio de um homework (reconhecido pelo nome do arquivo). */

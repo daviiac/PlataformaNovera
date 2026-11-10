@@ -6,6 +6,7 @@ const { ah, requireAuth, requirePlacement } = require('../auth');
 const { TRACKS, isLevel } = require('../tracks');
 const { materialDto, moduleDto } = require('../dto');
 const { LESSONS, HOMEWORK, HOMEWORK_BY_KEY } = require('../lessons/catalog');
+const { embedUrl } = require('../lessons/canva');
 const { unlockedLevels, requireUnlocked, levelHistory } = require('../levels');
 const { storage } = require('../storage');
 
@@ -63,6 +64,7 @@ router.get('/:level/lessons', requirePlacement, requireUnlocked(), ah(async (req
       pages: l.pages,
       extra: Boolean(l.extra),
       url: urlBy.get(l.n) || null,
+      embed: embedUrl(urlBy.get(l.n)),
       homework: HOMEWORK.filter((h) => h.level === level && h.lesson === l.n).map((h) => ({
         key: h.key,
         code: h.code,
