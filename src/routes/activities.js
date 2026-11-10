@@ -4,6 +4,7 @@ const express = require('express');
 const db = require('../db');
 const { ah, requireAuth, requirePlacement } = require('../auth');
 const { TYPES, TYPE_KEYS, BUILTIN, BUILTIN_BY_KEY } = require('../activities/catalog');
+const { unlockedLevels } = require('../levels');
 
 const router = express.Router();
 router.use(requireAuth, requirePlacement);
@@ -97,19 +98,23 @@ router.get('/', ah(async (req, res) => {
     `SELECT * FROM activities WHERE type = $1 ${level ? 'AND level = $2' : ''} ORDER BY created_at DESC, id DESC`,
     level ? [type, level] : [type],
   );
-  const best = await bestScores(req.user.id);
+  const [best, unlocked] = await Promise.all([bestScores(req.user.id), unlockedLevels(req.user)]);
   const all = [...rows.map(fromRow), ...builtin];
   res.json({
     type: TYPES.find((t) => t.key === type),
     userLevel: req.user.level,
-    activities: all.map((a) => summary(a, best.get(a.key))),
+    unlocked,
+    activities: all.map((a) => ({ ...summary(a, best.get(a.key)), locked: !unlocked.includes(a.level) })),
   });
 }));
+
+const LOCKED = { error: 'Este nível será liberado pela sua professora.', code: 'LEVEL_LOCKED' };
 
 /** Atividade completa para jogar. */
 router.get('/:key', ah(async (req, res) => {
   const a = await findActivity(req.params.key);
   if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
+  if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
   const best = (await bestScores(req.user.id)).get(a.key) || null;
   res.json({ activity: { ...a, slug: undefined, best }, type: TYPES.find((t) => t.key === a.type) });
 }));
@@ -118,6 +123,7 @@ router.get('/:key', ah(async (req, res) => {
 router.post('/:key/attempts', ah(async (req, res) => {
   const a = await findActivity(req.params.key);
   if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
+  if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
   const total = Number(req.body?.total);
   const score = Number(req.body?.score);
   if (!Number.isInteger(total) || total < 1 || total > 500 || !Number.isInteger(score) || score < 0 || score > total) {

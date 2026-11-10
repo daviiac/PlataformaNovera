@@ -88,6 +88,32 @@
       </section>
     </div>
 
+    <section class="card mt" id="trilha-aulas">
+      <div class="section-title">
+        <h2>Trilha de aulas e Homeworks</h2>
+        <span class="small muted" id="hw-totals"></span>
+      </div>
+      <div class="hw-import">
+        <p class="muted small">Selecione todos os PDFs de homework de uma vez (pode ser a pasta inteira). O sistema reconhece cada arquivo pelo nome e coloca no nível, na aula e na numeração certos. Enviar de novo substitui o arquivo.</p>
+        <label class="btn" for="hw-files">📚 Importar homeworks (PDF)</label>
+        <input type="file" id="hw-files" accept=".pdf,application/pdf" multiple hidden>
+        <div class="upload-progress" id="hw-progress" hidden><span></span></div>
+        <p class="small" id="hw-status" role="status"></p>
+        <ul class="small hw-report" id="hw-report"></ul>
+      </div>
+
+      <div class="section-title mt">
+        <h3>Links das apresentações (Canva)</h3>
+        <div class="segmented" id="lesson-level">
+          <button type="button" data-level="A1" class="active">A1</button>
+          <button type="button" data-level="A2">A2</button>
+          <button type="button" data-level="B2">B2</button>
+        </div>
+      </div>
+      <p class="hint">No Canva: abra a apresentação → <b>Compartilhar</b> → <b>Link de visualização pública</b> (ou "Apresentar e gravar / Visualizar") → copie e cole aqui. Sem link, o aluno vê "material em breve".</p>
+      <div class="lesson-admin" id="lesson-admin"></div>
+    </section>
+
     <section class="card mt" id="atividades">
       <div class="section-title">
         <h2>Atividades com vídeo do YouTube</h2>
@@ -182,5 +208,6 @@
   <script src="/js/act-common.js"></script>
   <script src="/admin/admin.js"></script>
   <script src="/admin/admin-activities.js"></script>
+  <script src="/admin/admin-lessons.js"></script>
 </body>
 </html>

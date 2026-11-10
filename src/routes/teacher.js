@@ -8,6 +8,7 @@ const express = require('express');
 const db = require('../db');
 const { ah, requireTeacher } = require('../auth');
 const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
+const { ORDER, levelHistory, unlockedLevels } = require('../levels');
 
 const router = express.Router();
 router.use(requireTeacher);
@@ -38,7 +39,14 @@ async function activityIndex(keys) {
 
 router.get('/overview', ah(async (req, res) => {
   const [students, grouped, placements] = await Promise.all([
-    db.query(`SELECT id, name, email, level, created_at FROM users WHERE role = 'student' ORDER BY name, id`),
+    db.query(`
+      SELECT u.id, u.name, u.email, u.level, u.created_at, lc.from_level AS previous_level, lc.created_at AS level_changed_at
+      FROM users u
+      LEFT JOIN LATERAL (
+        SELECT from_level, created_at FROM level_changes WHERE user_id = u.id AND from_level IS NOT NULL
+        ORDER BY created_at DESC, id DESC LIMIT 1
+      ) lc ON true
+      WHERE u.role = 'student' ORDER BY u.name, u.id`),
     db.query(`
       SELECT user_id, activity_key, COUNT(*)::int AS attempts, SUM(score)::int AS hits,
              SUM(total - score)::int AS misses, MAX(created_at) AS last_at
@@ -115,7 +123,33 @@ router.get('/students/:id', ah(async (req, res) => {
   }
   rows.sort((a, b) => new Date(b.at) - new Date(a.at));
 
-  res.json({ student, categories: CATEGORIES, attempts: rows });
+  const history = await levelHistory(id);
+  res.json({
+    student,
+    categories: CATEGORIES,
+    attempts: rows,
+    levelHistory: history.map((h) => ({ from: h.from_level, to: h.to_level, at: h.created_at, by: h.changed_by_name || 'Nivelamento' })),
+  });
+}));
+
+/**
+ * Altera o nível do aluno (somente professor(a) e administrador).
+ * O nível anterior continua liberado para o aluno; os seguintes só abrem quando
+ * a professora mudar o nível de novo.
+ */
+router.patch('/students/:id/level', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const level = String(req.body?.level || '').toUpperCase();
+  if (!ORDER.includes(level)) return res.status(400).json({ error: 'Escolha A1, A2 ou B2.' });
+  const student = Number.isInteger(id) ? await db.one("SELECT id, level FROM users WHERE id = $1 AND role = 'student'", [id]) : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  if (student.level === level) return res.status(400).json({ error: `O aluno já está no nível ${level}.` });
+
+  await db.query('UPDATE users SET level = $1 WHERE id = $2', [level, id]);
+  await db.query('INSERT INTO level_changes (user_id, from_level, to_level, changed_by) VALUES ($1, $2, $3, $4)',
+    [id, student.level, level, req.user.id]);
+  const unlocked = await unlockedLevels({ id, role: 'student', level });
+  res.json({ ok: true, from: student.level, to: level, unlocked });
 }));
 
 module.exports = router;

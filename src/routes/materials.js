@@ -5,14 +5,26 @@ const db = require('../db');
 const { ah, requireAuth, requirePlacement } = require('../auth');
 const { storage, INLINE_KINDS } = require('../storage');
 const { canPreview, buildPreviewPage } = require('../preview');
+const { unlockedLevels } = require('../levels');
 
 const router = express.Router();
 router.use(requireAuth, requirePlacement);
 
 async function findMaterial(idParam) {
   const id = Number(idParam);
-  return Number.isInteger(id) ? db.one('SELECT * FROM materials WHERE id = $1', [id]) : null;
+  return Number.isInteger(id)
+    ? db.one('SELECT mt.*, m.track FROM materials mt JOIN modules m ON m.id = mt.module_id WHERE mt.id = $1', [id])
+    : null;
 }
+
+// Materiais de um nível ainda não liberado ficam bloqueados para o aluno.
+router.use('/:id', ah(async (req, res, next) => {
+  const m = await findMaterial(req.params.id);
+  if (m && !(await unlockedLevels(req.user)).includes(m.track)) {
+    return res.status(403).json({ error: 'Este nível será liberado pela sua professora.', code: 'LEVEL_LOCKED' });
+  }
+  next();
+}));
 
 /**
  * Download/visualização de um material. Só usuários autenticados chegam aqui;

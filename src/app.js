@@ -126,6 +126,7 @@ const adminPage = (file) => (req, res) => {
 app.get(['/admin', '/admin.html'], adminPage('admin.html'));
 app.get('/admin/admin.js', adminPage('admin.js'));
 app.get('/admin/admin-activities.js', adminPage('admin-activities.js'));
+app.get('/admin/admin-lessons.js', adminPage('admin-lessons.js'));
 
 // Controle Professor(a): página e script entregues só ao professor(a) e ao administrador.
 const teacherPage = (file) => (req, res) => {

@@ -181,6 +181,80 @@ router.delete('/activities/:id', ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- Trilha de aulas: links das apresentações e homeworks ----------
+
+router.get('/lessons', ah(async (req, res) => {
+  const { LESSONS, HOMEWORK } = require('../lessons/catalog');
+  const [links, files] = await Promise.all([
+    db.query('SELECT level, lesson, url FROM lesson_links'),
+    db.query('SELECT key, size_bytes, uploaded_at FROM homework_files'),
+  ]);
+  const url = new Map(links.map((l) => [`${l.level}-${l.lesson}`, l.url]));
+  const file = new Map(files.map((f) => [f.key, f]));
+  res.json({
+    levels: Object.fromEntries(Object.entries(LESSONS).map(([level, list]) => [level, list.map((l) => ({
+      number: l.n, title: l.title, url: url.get(`${level}-${l.n}`) || '',
+      homework: HOMEWORK.filter((h) => h.level === level && h.lesson === l.n)
+        .map((h) => ({ key: h.key, code: h.code, title: h.title, file: h.file, uploaded: file.has(h.key) })),
+    }))])),
+    totals: { homework: HOMEWORK.length, uploaded: HOMEWORK.filter((h) => file.has(h.key)).length },
+  });
+}));
+
+/** Link do material (apresentação do Canva ou outro link público) de uma aula. */
+router.put('/lessons/:level/:n/link', ah(async (req, res) => {
+  const { LESSONS } = require('../lessons/catalog');
+  const level = String(req.params.level).toUpperCase();
+  const n = Number(req.params.n);
+  if (!LESSONS[level]?.some((l) => l.n === n)) return res.status(404).json({ error: 'Aula não encontrada.' });
+  const raw = str(req.body?.url, 600);
+  if (!raw) {
+    await db.query('DELETE FROM lesson_links WHERE level = $1 AND lesson = $2', [level, n]);
+    return res.json({ ok: true, url: null });
+  }
+  let u;
+  try { u = new URL(raw); } catch { return res.status(400).json({ error: 'Cole um link completo (https://…).' }); }
+  if (u.protocol !== 'https:') return res.status(400).json({ error: 'Use um link https://.' });
+  await db.query(`
+    INSERT INTO lesson_links (level, lesson, url, updated_at) VALUES ($1, $2, $3, now())
+    ON CONFLICT (level, lesson) DO UPDATE SET url = EXCLUDED.url, updated_at = now()
+  `, [level, n, u.toString()]);
+  res.json({ ok: true, url: u.toString() });
+}));
+
+/** 1) Pede a URL de envio de um homework (reconhecido pelo nome do arquivo). */
+router.post('/homework/uploads', ah(async (req, res) => {
+  const { HOMEWORK_BY_KEY, fileKey } = require('../lessons/catalog');
+  const fileName = str(req.body?.fileName, 300);
+  const size = Number(req.body?.size);
+  const hw = HOMEWORK_BY_KEY.get(fileKey(fileName));
+  if (!hw) return res.status(404).json({ error: 'Arquivo não reconhecido na lista de homeworks.', code: 'UNKNOWN_FILE' });
+  if (extOf(fileName) !== '.pdf') return res.status(400).json({ error: 'O homework deve ser PDF.' });
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) return res.status(400).json({ error: 'Tamanho de arquivo inválido.' });
+  const objectPath = newObjectPath('.pdf');
+  const upload = await storage.createUpload(objectPath, 'application/pdf');
+  res.status(201).json({ key: hw.key, code: hw.code, title: hw.title, objectPath, upload });
+}));
+
+/** 2) Depois do envio, registra (ou substitui) o PDF do homework. */
+router.post('/homework', ah(async (req, res) => {
+  const { HOMEWORK_BY_KEY } = require('../lessons/catalog');
+  const hw = HOMEWORK_BY_KEY.get(str(req.body?.key, 300));
+  const objectPath = req.body?.objectPath;
+  if (!hw) return res.status(404).json({ error: 'Homework não encontrado.' });
+  if (!isValidObjectPath(objectPath) || extOf(objectPath) !== '.pdf') return res.status(400).json({ error: 'Envio inválido.' });
+  const stat = await storage.stat(objectPath);
+  if (!stat) return res.status(400).json({ error: 'O arquivo não chegou ao armazenamento. Tente de novo.' });
+  const old = await db.one('SELECT stored_name FROM homework_files WHERE key = $1', [hw.key]);
+  await db.query(`
+    INSERT INTO homework_files (key, stored_name, size_bytes, uploaded_by, uploaded_at) VALUES ($1, $2, $3, $4, now())
+    ON CONFLICT (key) DO UPDATE SET stored_name = EXCLUDED.stored_name, size_bytes = EXCLUDED.size_bytes,
+      uploaded_by = EXCLUDED.uploaded_by, uploaded_at = now()
+  `, [hw.key, objectPath, stat.size, req.user.id]);
+  if (old && old.stored_name !== objectPath) await storage.remove(old.stored_name);
+  res.status(201).json({ ok: true, key: hw.key, code: hw.code, replaced: Boolean(old) });
+}));
+
 // ---------- Alunos ----------
 
 router.get('/students', ah(async (req, res) => {

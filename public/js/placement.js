@@ -71,25 +71,29 @@
     $('next-btn').disabled = true;
     $('q-progress').style.width = '100%';
     try {
-      const { result } = await api('/api/placement/submit', { method: 'POST', body: { answers } });
-      renderResult(result);
+      const { result, levelApplied, currentLevel } = await api('/api/placement/submit', { method: 'POST', body: { answers } });
+      renderResult(result, levelApplied, currentLevel);
     } catch (err) {
       $('quiz-error').textContent = err.message;
       $('next-btn').disabled = false;
     }
   });
 
-  function renderResult(result) {
+  function renderResult(result, levelApplied, currentLevel) {
     $('r-level').innerHTML = `<span class="level-badge level-${result.level}">${result.level}</span>`;
-    $('r-desc').textContent = LEVEL_DESC[result.level];
+    const keep = user.role === 'student' && !levelApplied && currentLevel;
+    $('r-desc').textContent = keep
+      ? `Seu resultado foi registrado e enviado para a sua professora. Você continua no nível ${currentLevel} — a mudança de nível é feita por ela.`
+      : LEVEL_DESC[result.level];
     $('r-score').textContent = `Você acertou ${result.correct} de ${result.total} questões (${result.score}/${result.maxScore} pontos ponderados).`;
     $('r-bands').innerHTML = Object.entries(result.byBand).map(([band, b]) => `
       <div class="band"><span class="small muted">Questões ${band}</span><strong>${b.correct}/${b.total}</strong></div>`).join('');
-    $('go-track').href = user.role === 'admin' ? '/admin' : `/trilha?nivel=${result.level}`;
-    $('go-track').textContent = user.role === 'admin' ? 'Voltar ao painel' : 'Ir para minha trilha';
+    const staff = user.role !== 'student';
+    $('go-track').href = staff ? Novera.homeFor(user) : `/trilha?nivel=${keep ? currentLevel : result.level}`;
+    $('go-track').textContent = staff ? 'Voltar' : 'Ir para minha trilha';
     show('result');
-    // Atualiza o selo de nível no topo.
-    if (user.role === 'student') renderTopbar({ ...user, level: result.level }, 'nivelamento');
+    // Atualiza o selo de nível no topo (só quando o nivelamento definiu o nível).
+    if (user.role === 'student' && levelApplied) renderTopbar({ ...user, level: result.level }, 'nivelamento');
   }
 
   $('retry-btn').addEventListener('click', () => show('intro'));

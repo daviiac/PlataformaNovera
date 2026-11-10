@@ -9,27 +9,53 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/activities.css">
+  <link rel="stylesheet" href="/css/trail.css">
 </head>
 <body>
   <header class="topbar" id="topbar"></header>
 
-  <main class="container">
-    <nav class="level-tabs" id="level-tabs" aria-label="Trilhas por nível"></nav>
-
-    <div id="other-level-notice" class="notice" hidden></div>
-
-    <div class="track-hero">
-      <div>
-        <span class="eyebrow" id="track-eyebrow">Trilha de estudos</span>
-        <h1 id="track-title"></h1>
-        <p class="muted" id="track-desc"></p>
+  <main class="container trail-page">
+    <!-- Céu: estrelas, estrelas cadentes e foguetes -->
+    <section class="space" id="space" aria-labelledby="trail-title">
+      <div class="space-sky" id="space-sky" aria-hidden="true"></div>
+      <div class="space-content">
+        <span class="eyebrow">Sua jornada no inglês</span>
+        <h1 id="trail-title">Trilha <span class="hl" id="trail-level"></span></h1>
+        <p class="muted" id="trail-desc"></p>
+        <div class="level-status" id="level-status"></div>
+        <nav class="planets" id="planets" aria-label="Escolha a trilha"></nav>
       </div>
-      <a class="btn btn-ghost btn-sm" href="/nivelamento" id="redo-link">Refazer nivelamento</a>
-    </div>
+    </section>
 
     <p class="alert alert-error" id="track-error" role="alert"></p>
-    <div class="modules" id="modules"></div>
+
+    <!-- Mapa de aulas -->
+    <section class="lesson-map" id="lesson-map" aria-labelledby="map-title">
+      <header class="map-head">
+        <span class="map-brand">Novera Academy</span>
+        <h2 id="map-title" class="map-title"></h2>
+        <div class="map-side"><strong id="map-level-name"></strong><span>Clique em cada título para acessar o material</span></div>
+      </header>
+      <div class="map-rows" id="map-rows"><p class="muted">Carregando…</p></div>
+    </section>
+
+    <!-- Materiais extras enviados pela escola -->
+    <details class="card extras" id="extras">
+      <summary><span class="eyebrow">Materiais extras</span> <span class="small dim" id="extras-count"></span></summary>
+      <div class="modules" id="modules"></div>
+    </details>
   </main>
+
+  <!-- Homeworks da aula -->
+  <div class="hw-overlay" id="hw-overlay" hidden>
+    <div class="hw-modal card" role="dialog" aria-modal="true" aria-labelledby="hw-title">
+      <header class="hw-head">
+        <div><span class="eyebrow" id="hw-eyebrow">Home Work</span><h2 id="hw-title"></h2></div>
+        <button type="button" class="btn btn-ghost btn-icon" id="hw-close" aria-label="Fechar">✕</button>
+      </header>
+      <ol class="hw-list" id="hw-list"></ol>
+    </div>
+  </div>
 
   <script src="/js/common.js"></script>
   <script src="/js/track.js"></script>

@@ -28,6 +28,8 @@
 .t-hit { color: var(--success); }
 .t-miss { color: var(--danger); }
 .t-empty { margin: 0.8rem 0 0; }
+.t-level { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px dashed var(--line); }
+.t-level select { font: inherit; color: var(--text); background: rgba(14, 7, 24, 0.6); border: 1px solid var(--line); border-radius: 8px; padding: 0.3rem 0.5rem; }
 .t-detail { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 .t-group { margin-bottom: 1.2rem; }
 .t-group h3 { font-size: 1rem; margin-bottom: 0.5rem; }
@@ -110,6 +112,10 @@
 .act-title { font-weight: 600; font-size: 1.02rem; }
 .act-desc { color: var(--dim); font-size: 0.86rem; }
 .empty-state { grid-column: 1 / -1; text-align: center; }
+.act-card.is-locked { opacity: 0.55; cursor: not-allowed; }
+.act-card.is-locked:hover { transform: none; box-shadow: none; }
+.act-visual { position: relative; }
+.act-lock { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2rem; background: rgba(8, 4, 14, 0.45); }
 
 /* ---------- Página de atividade ---------- */
 .act-page { max-width: 900px; }
@@ -324,6 +330,15 @@
 .admin-act img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; }
 .admin-act .grow { flex: 1; min-width: 0; }
 .preview-box { max-width: 520px; }
+.hw-import { padding: 1rem; border-radius: 12px; border: 1px dashed var(--line-strong); background: rgba(14, 7, 24, 0.35); }
+.hw-report { margin: 0.4rem 0 0; padding-left: 1.1rem; max-height: 160px; overflow: auto; }
+.lesson-admin { display: grid; gap: 0.6rem; }
+.lesson-row { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 12px; }
+.lesson-num { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; background: var(--violet-soft); color: var(--violet); }
+.lesson-main { display: grid; gap: 0.4rem; min-width: 0; }
+.lesson-link { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.lesson-link input { flex: 1; min-width: 200px; font: inherit; padding: 0.45rem 0.6rem; border-radius: 8px; border: 1px solid var(--line); background: rgba(14, 7, 24, 0.55); color: var(--text); }
+.lesson-hw { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 .song-steps { color: var(--muted); padding-left: 1.2rem; display: grid; gap: 0.3rem; }
 .song-steps code, .hint code { background: rgba(255, 255, 255, 0.06); padding: 0.05rem 0.3rem; border-radius: 4px; }
 .row-left { justify-content: flex-start; }

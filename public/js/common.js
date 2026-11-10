@@ -123,12 +123,16 @@ const Novera = (() => {
     if (!dd) return;
     const btn = dd.querySelector('.nav-dd-btn');
     const menu = dd.querySelector('.nav-menu');
+    // A barra do topo usa backdrop-filter, que faz "position: fixed" ficar relativo a ela.
+    // Movendo o menu para o <body>, ele fica alinhado à tela, logo abaixo de "Atividades".
+    document.querySelectorAll('body > .nav-menu').forEach((old) => old.remove());
+    document.body.appendChild(menu);
     const place = () => {
       const r = btn.getBoundingClientRect();
       const w = Math.min(280, window.innerWidth - 16);
       menu.style.width = `${w}px`;
-      menu.style.top = `${r.bottom + 8}px`;
-      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+      menu.style.top = `${Math.round(r.bottom + 8)}px`;
+      menu.style.left = `${Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8)))}px`;
     };
     const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
     const open = () => { place(); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
@@ -143,7 +147,7 @@ const Novera = (() => {
       if (e.key === 'ArrowUp') { e.preventDefault(); links[(i - 1 + links.length) % links.length].focus(); }
       if (e.key === 'Escape') { close(); btn.focus(); }
     });
-    document.addEventListener('click', (e) => { if (!dd.contains(e.target)) close(); });
+    document.addEventListener('click', (e) => { if (!dd.contains(e.target) && !menu.contains(e.target)) close(); });
     window.addEventListener('resize', () => { if (!menu.hidden) place(); });
     window.addEventListener('scroll', () => { if (!menu.hidden) place(); }, { passive: true });
   }

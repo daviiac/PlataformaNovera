@@ -56,10 +56,10 @@
       : `<span class="act-cover" aria-hidden="true">${a.cover || type.icon}</span>`;
     const own = a.level === user.level ? '<span class="tag tag-own">Seu nível</span>' : '';
     return `
-      <a class="act-card" href="/atividade?id=${encodeURIComponent(a.key)}">
-        <span class="act-visual">${visual}</span>
+      <a class="act-card ${a.locked ? 'is-locked' : ''}" href="${a.locked ? '#' : `/atividade?id=${encodeURIComponent(a.key)}`}" ${a.locked ? 'aria-disabled="true" data-locked="1"' : ''}>
+        <span class="act-visual">${visual}${a.locked ? '<span class="act-lock" aria-hidden="true">🔒</span>' : ''}</span>
         <span class="act-body">
-          <span class="act-tags"><span class="level-badge level-${esc(a.level)}">${esc(a.level)}</span>${own}${best}</span>
+          <span class="act-tags"><span class="level-badge level-${esc(a.level)}">${esc(a.level)}</span>${own}${best}${a.locked ? '<span class="tag">Liberado pela professora</span>' : ''}</span>
           <span class="act-title">${esc(a.title)}</span>
           <span class="act-desc">${esc(a.description || '')}</span>
           ${count}
@@ -88,6 +88,9 @@
     if (b) setLevel(b.dataset.level);
   });
   $('search').addEventListener('input', render);
+  $('act-grid').addEventListener('click', (e) => {
+    if (e.target.closest('[data-locked]')) { e.preventDefault(); Novera.toast('🔒 Este nível será liberado pela sua professora.'); }
+  });
 
   try {
     ({ activities: all } = await api(`/api/activities?type=${encodeURIComponent(tipo)}`));

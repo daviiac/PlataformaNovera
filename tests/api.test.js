@@ -144,9 +144,13 @@ test('aluno sem nivelamento não acessa trilhas; após o teste recebe o nível',
   assert.equal(track.status, 200);
   assert.equal(track.data.isOwnLevel, true);
 
-  const other = await c('GET', '/api/tracks/B2');
-  assert.equal(other.status, 200, 'aluno pode navegar para outras trilhas');
-  assert.equal(other.data.isOwnLevel, false);
+  // Nível anterior fica aberto; o próximo só a professora libera.
+  const lower = await c('GET', '/api/tracks/A1');
+  assert.equal(lower.status, 200, 'nível anterior liberado');
+  assert.equal(lower.data.isOwnLevel, false);
+  const next = await c('GET', '/api/tracks/B2');
+  assert.equal(next.status, 403, 'próximo nível bloqueado');
+  assert.equal(next.data.code, 'LEVEL_LOCKED');
 
   const overview = await c('GET', '/api/tracks');
   assert.equal(overview.data.tracks.length, 3);

@@ -70,8 +70,36 @@
           ? `<div class="t-chips">${cats.map((c) => chip(c, s.categories[c.key])).join('')}</div>`
           : `<p class="small dim t-empty">${cat ? 'Nenhuma atividade nesta categoria.' : 'Ainda não fez nenhuma atividade.'}</p>`}
         ${s.done ? `<p class="small dim">📖 ${s.done} lição(ões)/videoaula(s) concluída(s).</p>` : ''}
+        <div class="t-level">
+          <span class="small"><b>Nível do aluno:</b> ${s.level ? esc(s.level) : 'sem nível'}${s.previous_level ? ` <span class="dim">(antes: ${esc(s.previous_level)} · ${formatDate(s.level_changed_at)})</span>` : ''}</span>
+          <label class="sr-only" for="lvl-${s.id}">Novo nível de ${esc(s.name)}</label>
+          <select id="lvl-${s.id}" data-level-select>
+            ${['A1', 'A2', 'B2'].map((l) => `<option value="${l}" ${l === s.level ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+          <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
+        </div>
         <div class="t-detail" hidden></div>
       </article>`;
+  }
+
+  async function saveLevel(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const level = art.querySelector('[data-level-select]').value;
+    if (level === s.level) return Novera.toast(`${s.name} já está no nível ${level}.`);
+    const msg = `Mudar ${s.name} de ${s.level || 'sem nível'} para ${level}?\n\nO aluno continua vendo o nível anterior e passa a ver o novo. Os níveis seguintes continuam bloqueados até você liberar.`;
+    if (!confirm(msg)) return;
+    try {
+      const r = await api(`/api/teacher/students/${id}/level`, { method: 'PATCH', body: { level } });
+      s.previous_level = r.from;
+      s.level = r.to;
+      s.level_changed_at = new Date().toISOString();
+      detailCache.delete(id);
+      Novera.toast(`Nível de ${s.name} alterado: ${r.from || '—'} → ${r.to}.`);
+      render();
+    } catch (err) {
+      Novera.toast(err.message);
+    }
   }
 
   function render() {
@@ -102,10 +130,13 @@
 
   // ------------------------------------------------------------ detalhes do aluno
   function detailHtml(d, cat) {
+    const hist = d.levelHistory?.length
+      ? `<section class="t-group"><h3>🪐 Histórico de nível</h3><ul class="small">${d.levelHistory.map((h) => `<li>${h.from ? `${esc(h.from)} → ` : 'Nível inicial: '}<b>${esc(h.to)}</b> · ${dateTime(h.at)} · ${esc(h.by)}</li>`).join('')}</ul></section>`
+      : '';
     const rows = d.attempts.filter((a) => a.scored && (!cat || a.category === cat));
-    if (!rows.length) return '<p class="small dim">Sem registros para mostrar.</p>';
+    if (!rows.length) return `${hist}<p class="small dim">Sem registros de atividades para mostrar.</p>`;
     const groups = categories.filter((c) => rows.some((r) => r.category === c.key));
-    return groups.map((c) => {
+    return hist + groups.map((c) => {
       const rs = rows.filter((r) => r.category === c.key);
       const h = rs.reduce((n, r) => n + r.hits, 0);
       const m = rs.reduce((n, r) => n + r.misses, 0);
@@ -131,6 +162,8 @@
   }
 
   $('t-list').addEventListener('click', async (e) => {
+    const save = e.target.closest('[data-save-level]');
+    if (save) return saveLevel(save.closest('.t-student'));
     const btn = e.target.closest('[data-detail]');
     if (!btn) return;
     const art = btn.closest('.t-student');

@@ -12,7 +12,7 @@ const listen = require('./content/listen');
 const dictation = require('./content/dictation');
 const { lessons, quizzes } = require('./content/grammar');
 const { wordOrder, textCorrection } = require('./content/practice');
-const worksheets = require('./content/worksheets');
+const worksheets = [...require('./content/worksheets'), ...require('./content/worksheets2')];
 
 const TYPES = [
   { key: 'quiz', label: 'Quiz em vídeo', icon: '🎬', description: 'Assista a um vídeo e responda às perguntas que aparecem durante ele.', adminCreated: true },
