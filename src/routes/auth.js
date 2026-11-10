@@ -18,9 +18,9 @@ const identifierOf = (req) => str(req.body?.identifier || req.body?.email).toLow
 
 // Login: por IP + conta, por IP (muitas contas) e por conta (ataque distribuído de vários IPs).
 const loginLimiter = rateLimit([
-  { name: 'login-id', windowMs: 15 * MIN, max: 8, keyFn: (req) => `${req.ip}|${identifierOf(req)}` },
+  { name: 'login-id', windowMs: 15 * MIN, max: 8, keyFn: (req) => `${req.ip}|${identifierOf(req)}`, subjectFn: identifierOf },
   { name: 'login-ip', windowMs: 15 * MIN, max: 40, keyFn: (req) => req.ip },
-  { name: 'login-account', windowMs: 60 * MIN, max: 50, keyFn: identifierOf },
+  { name: 'login-account', windowMs: 60 * MIN, max: 50, keyFn: identifierOf, subjectFn: identifierOf },
 ]);
 
 // Cadastro: evita criação de contas em massa a partir do mesmo IP.

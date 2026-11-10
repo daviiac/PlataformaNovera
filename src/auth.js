@@ -112,15 +112,17 @@ function rateLimit(limits) {
   return ah(async (req, res, next) => {
     const now = Date.now();
     let retryAfterMs = 0;
-    for (const { name, windowMs, max, keyFn } of limits) {
+    for (const { name, windowMs, max, keyFn, subjectFn } of limits) {
       const key = sha256(`${name}|${keyFn(req)}`);
+      const subject = subjectFn ? subjectHash(subjectFn(req)) : null;
       const row = await db.one(`
-        INSERT INTO auth_attempts (key, count, reset_at) VALUES ($1, 1, $2)
+        INSERT INTO auth_attempts (key, count, reset_at, subject) VALUES ($1, 1, $2, $4)
         ON CONFLICT (key) DO UPDATE SET
           count    = CASE WHEN auth_attempts.reset_at <= $3 THEN 1  ELSE auth_attempts.count + 1 END,
-          reset_at = CASE WHEN auth_attempts.reset_at <= $3 THEN $2 ELSE auth_attempts.reset_at END
+          reset_at = CASE WHEN auth_attempts.reset_at <= $3 THEN $2 ELSE auth_attempts.reset_at END,
+          subject  = COALESCE(EXCLUDED.subject, auth_attempts.subject)
         RETURNING count, reset_at
-      `, [key, now + windowMs, now]);
+      `, [key, now + windowMs, now, subject]);
       if (row.count > max) retryAfterMs = Math.max(retryAfterMs, Number(row.reset_at) - now);
     }
     // Limpeza ocasional de contadores vencidos.
@@ -139,7 +141,15 @@ async function resetRateLimit(name, keyValue) {
   await db.query('DELETE FROM auth_attempts WHERE key = $1', [sha256(`${name}|${keyValue}`)]);
 }
 
+const subjectHash = (identifier) => sha256(`subject|${String(identifier || '').trim().toLowerCase()}`);
+
+/** Libera todos os bloqueios de login de uma conta (de qualquer IP). Usado ao redefinir a senha. */
+async function clearAccountLimits(identifier) {
+  await db.query('DELETE FROM auth_attempts WHERE subject = $1', [subjectHash(identifier)]);
+}
+
 module.exports = {
+  clearAccountLimits,
   ah,
   hashPassword,
   verifyPassword,

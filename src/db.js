@@ -161,6 +161,10 @@ const MIGRATIONS = [
   // Aluno inativo na escola: a professora desliga o acesso (não entra e é desconectado na hora).
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ',
+  // Contadores de tentativas ligados à conta (hash do e-mail), para a professora poder liberar
+  // todos os bloqueios de login de um aluno ao redefinir a senha.
+  'ALTER TABLE auth_attempts ADD COLUMN IF NOT EXISTS subject TEXT',
+  'CREATE INDEX IF NOT EXISTS idx_auth_attempts_subject ON auth_attempts(subject)',
   `DO $$
    DECLARE c record;
    BEGIN

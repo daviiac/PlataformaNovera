@@ -35,7 +35,13 @@
       const { user } = await fn(Object.fromEntries(new FormData(form)));
       window.location.replace(homeFor(user));
     } catch (err) {
-      errorEl.textContent = err.message;
+      let hint = '';
+      if (form === forms.login && err.status === 401) {
+        hint = ' Se você acabou de criar uma senha nova, apague a senha que o navegador preencheu sozinho e digite a nova.';
+      } else if (form === forms.login && err.status === 429) {
+        hint = ' Se esqueceu a senha, peça para sua professora redefinir: isso libera o acesso na hora.';
+      }
+      errorEl.textContent = err.message + hint;
       button.disabled = false;
     }
   }

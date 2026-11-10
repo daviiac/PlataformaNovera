@@ -298,3 +298,33 @@ test('senha provisória: aceita espaço ou quebra de linha copiados junto; senha
   // Maiúsculas/minúsculas continuam importando.
   assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: temp.toLowerCase() } })).status, 401);
 });
+
+test('redefinir senha libera o bloqueio por tentativas; depois da troca entra só com a senha nova', async () => {
+  const email = 'rita.bloqueio@exemplo.com';
+  const s = client();
+  const reg = await s('POST', '/api/auth/register', { json: { name: 'Rita Lopes', email, password: STRONG, level: 'A1' } });
+  assert.equal(reg.status, 201);
+  const tryLogin = (password) => client()('POST', '/api/auth/login', { json: { identifier: email, password } });
+
+  for (let i = 0; i < 8; i += 1) assert.equal((await tryLogin('Errada#2026x')).status, 401);
+  const locked = await tryLogin(STRONG);
+  assert.equal(locked.status, 429, 'bloqueado mesmo com a senha certa');
+
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const { tempPassword } = (await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`)).data;
+  const c = client();
+  const first = await c('POST', '/api/auth/login', { json: { identifier: email, password: tempPassword } });
+  assert.equal(first.status, 200, 'redefinir libera o bloqueio');
+  assert.equal(first.data.user.mustChangePassword, true);
+
+  const NEW = 'Rio#Claro2026k';
+  const ch = await c('POST', '/api/auth/change-password', { json: { password: NEW } });
+  assert.equal(ch.status, 200);
+  assert.equal(ch.data.user.mustChangePassword, false);
+  assert.equal((await c('GET', '/api/tracks')).status, 200, 'continua logada depois da troca');
+
+  assert.equal((await tryLogin(tempPassword)).status, 401, 'provisória não vale mais');
+  const again = await tryLogin(NEW);
+  assert.equal(again.status, 200, 'entra com a senha nova');
+  assert.equal(again.data.user.mustChangePassword, false);
+});

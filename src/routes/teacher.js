@@ -7,7 +7,7 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const db = require('../db');
-const { ah, requireTeacher, hashPassword, resetRateLimit } = require('../auth');
+const { ah, requireTeacher, hashPassword, clearAccountLimits } = require('../auth');
 const PasswordPolicy = require('../../public/js/password-policy');
 const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
 const { ORDER, levelHistory, unlockedLevels } = require('../levels');
@@ -184,8 +184,8 @@ router.post('/students/:id/reset-password', ah(async (req, res) => {
   const temp = temporaryPassword({ name: student.name, email: student.email });
   await db.query('UPDATE users SET password_hash = $1, must_change_password = true WHERE id = $2', [await hashPassword(temp), id]);
   await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
-  // Libera novas tentativas de login para o aluno entrar com a senha provisória.
-  await resetRateLimit('login-account', String(student.email || '').toLowerCase());
+  // Libera todos os bloqueios de login do aluno (de qualquer aparelho) para ele entrar com a provisória.
+  await clearAccountLimits(student.email);
   res.json({ ok: true, tempPassword: temp, student: { id: student.id, name: student.name, email: student.email } });
 }));
 
@@ -198,7 +198,7 @@ router.patch('/students/:id/active', ah(async (req, res) => {
   if (typeof req.body?.active !== 'boolean') return res.status(400).json({ error: 'Informe se o acesso fica ativo ou inativo.' });
   const active = req.body.active;
   const student = Number.isInteger(id)
-    ? await db.one("SELECT id, name, active FROM users WHERE id = $1 AND role = 'student'", [id])
+    ? await db.one("SELECT id, name, email, active FROM users WHERE id = $1 AND role = 'student'", [id])
     : null;
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
 
@@ -208,6 +208,7 @@ router.patch('/students/:id/active', ah(async (req, res) => {
     [active, id],
   );
   if (!active) await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
+  else await clearAccountLimits(student.email);
   res.json({ ok: true, active: row.active, deactivatedAt: row.deactivated_at });
 }));
 
