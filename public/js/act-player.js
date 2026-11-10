@@ -522,18 +522,18 @@
 
     stage.innerHTML = `
       <div class="vq-wrap">
-        <div class="video-box"><div id="yt-player"></div>
-          <div class="vq-overlay" data-overlay hidden>
-            <div class="vq-modal" role="dialog" aria-modal="true" aria-labelledby="vq-prompt">
-              <p class="small dim" data-qcount></p>
-              <h2 id="vq-prompt" data-prompt></h2>
-              <div class="opt-list" data-options></div>
-              <div class="feedback" data-feedback hidden></div>
-              <div class="row-actions">
-                <button type="button" class="btn btn-ghost btn-sm" data-rewind>↺ Rever 15s</button>
-                <button type="button" class="btn" data-confirm disabled>Confirmar</button>
-                <button type="button" class="btn" data-continue hidden>Continuar ▶</button>
-              </div>
+        <div class="video-box"><div id="yt-player"></div></div>
+        <!-- A pergunta aparece ABAIXO do vídeo: as regras do YouTube não permitem nada na frente do player. -->
+        <div class="vq-overlay" data-overlay hidden>
+          <div class="vq-modal" role="region" aria-live="polite" aria-labelledby="vq-prompt">
+            <p class="small dim" data-qcount></p>
+            <h2 id="vq-prompt" data-prompt></h2>
+            <div class="opt-list" data-options></div>
+            <div class="feedback" data-feedback hidden></div>
+            <div class="row-actions">
+              <button type="button" class="btn btn-ghost btn-sm" data-rewind>↺ Rever 15s</button>
+              <button type="button" class="btn" data-confirm disabled>Confirmar</button>
+              <button type="button" class="btn" data-continue hidden>Continuar ▶</button>
             </div>
           </div>
         </div>
@@ -566,6 +566,7 @@
       q('[data-continue]').hidden = true;
       q('[data-rewind]').hidden = false;
       overlay.hidden = false;
+      overlay.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     q('[data-options]').addEventListener('change', () => { q('[data-confirm]').disabled = false; });
