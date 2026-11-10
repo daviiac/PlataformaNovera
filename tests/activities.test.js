@@ -82,6 +82,14 @@ test('conteúdo próprio: estrutura válida em todas as atividades', () => {
       }
       assert.ok(BUILTIN.some((x) => x.key === d.lessonKey), `${tag}: lição ligada não existe`);
     }
+    if (a.type === 'song') {
+      assert.match(d.youtubeId, /^[A-Za-z0-9_-]{11}$/, tag);
+      assert.equal(d.questions.length, 5, tag);
+      for (const it of d.questions) {
+        assert.ok(it.answer >= 0 && it.answer < it.options.length, tag);
+        assert.ok(Number.isInteger(it.time) && it.time > 0, tag);
+      }
+    }
     if (a.type === 'text_correction') assert.ok((d.text.match(/\[[^|\]]+\|[^\]]+\]/g) || []).length >= 3, tag);
     if (a.type === 'worksheet') {
       for (const p of d.pages) {

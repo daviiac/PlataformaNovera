@@ -21,7 +21,8 @@ function itemCount(type, data) {
     case 'text_correction': return { n: (data.text.match(/\[[^\]]+\]/g) || []).length, unit: 'erros' };
     case 'worksheet': return { n: data.pages.length, unit: 'páginas' };
     case 'quiz': return { n: data.questions.length, unit: 'perguntas' };
-    case 'song': return { n: data.lines.reduce((s, l) => s + (l.text.match(/\[[^\]]+\]/g) || []).length, 0), unit: 'lacunas' };
+    case 'song': if (data.questions) return { n: data.questions.length, unit: 'perguntas' };
+      return { n: data.lines.reduce((s, l) => s + (l.text.match(/\[[^\]]+\]/g) || []).length, 0), unit: 'lacunas' };
     default: return null;
   }
 }

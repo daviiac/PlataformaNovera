@@ -856,7 +856,8 @@
     word_order: playWordOrder,
     text_correction: playTextCorrection,
     quiz: playVideoQuiz,
-    song: playSong,
+    // Música: quiz no clipe oficial (perguntas durante o vídeo) ou letra com lacunas.
+    song: () => (data.questions ? playVideoQuiz() : playSong()),
     video_lesson: playVideoLesson,
     worksheet: playWorksheet,
   };

@@ -13,10 +13,11 @@ const dictation = require('./content/dictation');
 const { lessons, quizzes } = require('./content/grammar');
 const { wordOrder, textCorrection } = require('./content/practice');
 const worksheets = [...require('./content/worksheets'), ...require('./content/worksheets2')];
+const music = require('./content/music');
 
 const TYPES = [
   { key: 'quiz', label: 'Quiz em vídeo', icon: '🎬', description: 'Assista a um vídeo e responda às perguntas que aparecem durante ele.', adminCreated: true },
-  { key: 'song', label: 'Música', icon: '🎵', description: 'Ouça a música e complete as lacunas da letra.', adminCreated: true },
+  { key: 'song', label: 'Música', icon: '🎵', description: 'Assista ao clipe oficial e responda às perguntas sobre a música.', adminCreated: true },
   { key: 'listen', label: 'Listen', icon: '🎧', description: 'Ouça diálogos e responda às perguntas de compreensão.' },
   { key: 'dictation', label: 'Ditado', icon: '✍️', description: 'Ouça cada frase e escreva o que entendeu.' },
   { key: 'grammar_lesson', label: 'Estudo de Gramática', icon: '📖', description: 'Explicações claras, exemplos e erros comuns.' },
@@ -40,6 +41,7 @@ const BUILTIN = [
   ...wordOrder.map(withType('word_order')),
   ...textCorrection.map(withType('text_correction')),
   ...worksheets.map(withType('worksheet')),
+  ...music.map(withType('song')),
 ].map((a) => ({ ...a, key: `b-${a.slug}`, builtin: true }));
 
 const BUILTIN_BY_KEY = new Map(BUILTIN.map((a) => [a.key, a]));
