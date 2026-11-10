@@ -110,13 +110,15 @@
       return { x: r.left + r.width / 2 - box.left, y: r.top + r.height / 2 - box.top, row: Number(el.closest('.map-row').dataset.row) };
     });
     svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
-    const R = 46; // quanto a curva entre fileiras sai para a lateral
+    const R = 112; // quanto a curva entre fileiras sai para a lateral (contorna os cards)
     let d = `M ${pts[0].x} ${pts[0].y}`;
     for (let k = 1; k < pts.length; k += 1) {
       const a = pts[k - 1];
       const b = pts[k];
       if (a.row !== b.row) {
-        const side = a.row % 2 === 0 ? Math.max(a.x, b.x) + R : Math.min(a.x, b.x) - R;
+        const side = a.row % 2 === 0
+          ? Math.min(box.width + 16, Math.max(a.x, b.x) + R)
+          : Math.max(-16, Math.min(a.x, b.x) - R);
         d += ` C ${side} ${a.y}, ${side} ${b.y}, ${b.x} ${b.y}`;
       } else if (Math.abs(a.x - b.x) < 2) {
         d += ` L ${b.x} ${b.y}`; // celular: coluna única
