@@ -6,3 +6,4 @@ storage/
 *.db-*
 .vercel/
 supabase/setup.sql
+supabase/professor.sql

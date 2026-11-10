@@ -22,7 +22,7 @@
       ]
     },
     {
-      "source": "/(admin|admin/.*)",
+      "source": "/(admin|admin/.*|professor|professor/.*)",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "Cache-Control", "value": "no-store" }

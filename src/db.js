@@ -18,7 +18,7 @@ const SCHEMA = `
     email         TEXT        UNIQUE,
     username      TEXT        UNIQUE,
     password_hash TEXT        NOT NULL,
-    role          TEXT        NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin')),
+    role          TEXT        NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin', 'teacher')),
     level         TEXT        CHECK (level IN ('A1', 'A2', 'B2')),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (email IS NOT NULL OR username IS NOT NULL)
@@ -119,7 +119,26 @@ const LOCKDOWN = [
    END $$`,
 ];
 
-const STATEMENTS = [...SCHEMA.split(';').map((s) => s.trim()).filter(Boolean), ...LOCKDOWN];
+/**
+ * Migrações idempotentes para bancos criados por versões anteriores.
+ * - Perfil "teacher" (Controle Professor(a)): amplia o CHECK de users.role, só se ainda não aceitar.
+ */
+const MIGRATIONS = [
+  `DO $$
+   DECLARE c record;
+   BEGIN
+     FOR c IN
+       SELECT conname FROM pg_constraint
+       WHERE conrelid = 'users'::regclass AND contype = 'c'
+         AND pg_get_constraintdef(oid) LIKE '%role%' AND pg_get_constraintdef(oid) NOT LIKE '%teacher%'
+     LOOP
+       EXECUTE format('ALTER TABLE users DROP CONSTRAINT %I', c.conname);
+       ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'admin', 'teacher'));
+     END LOOP;
+   END $$`,
+];
+
+const STATEMENTS = [...SCHEMA.split(';').map((s) => s.trim()).filter(Boolean), ...MIGRATIONS, ...LOCKDOWN];
 
 let driverPromise = null;
 

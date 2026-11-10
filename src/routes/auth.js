@@ -6,6 +6,8 @@ const {
   ah, hashPassword, verifyPassword, createSession, destroySession, rateLimit, resetRateLimit,
 } = require('../auth');
 
+const PasswordPolicy = require('../../public/js/password-policy');
+
 const router = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -34,12 +36,20 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   const name = str(req.body?.name);
   const email = str(req.body?.email).toLowerCase();
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const levelChoice = str(req.body?.level).toUpperCase();
 
   if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Informe um nome entre 2 e 80 caracteres.' });
   if (!EMAIL_RE.test(email) || email.length > 160) return res.status(400).json({ error: 'Informe um e-mail válido.' });
-  if (password.length < 8 || password.length > 128) {
-    return res.status(400).json({ error: 'A senha deve ter entre 8 e 128 caracteres.' });
+  // Nível obrigatório: A1, A2, B2 ou "TEST" (não sei — vou fazer o teste de nivelamento).
+  if (!['A1', 'A2', 'B2', 'TEST'].includes(levelChoice)) {
+    return res.status(400).json({ error: 'Escolha o seu nível de inglês (ou "Não sei, quero fazer o teste").' });
   }
+  const strength = PasswordPolicy.check(password, { name, email });
+  if (!strength.ok) {
+    const missing = strength.checks.filter((c) => !c.ok).map((c) => c.label.toLowerCase());
+    return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });
+  }
+  const level = levelChoice === 'TEST' ? null : levelChoice;
 
   const exists = await db.one('SELECT 1 FROM users WHERE email = $1 OR username = $1', [email]);
   if (exists) return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
@@ -49,8 +59,8 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   let user;
   try {
     user = await db.one(
-      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'student') RETURNING *",
-      [name, email, passwordHash],
+      "INSERT INTO users (name, email, password_hash, role, level) VALUES ($1, $2, $3, 'student', $4) RETURNING *",
+      [name, email, passwordHash, level],
     );
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });

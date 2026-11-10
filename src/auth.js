@@ -80,9 +80,18 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-/** Alunos precisam ter feito o nivelamento antes de acessar as trilhas. */
+/** Controle Professor(a): professor(a) e administrador. Alunos nunca. */
+function requireTeacher(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Faça login para continuar.', code: 'UNAUTHENTICATED' });
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acesso restrito ao Controle Professor(a).', code: 'FORBIDDEN' });
+  }
+  next();
+}
+
+/** Alunos precisam ter um nível antes de acessar trilhas e atividades (admin e professor não). */
 function requirePlacement(req, res, next) {
-  if (req.user.role !== 'admin' && !req.user.level) {
+  if (req.user.role === 'student' && !req.user.level) {
     return res.status(403).json({ error: 'Faça o teste de nivelamento primeiro.', code: 'PLACEMENT_REQUIRED' });
   }
   next();
@@ -135,6 +144,7 @@ module.exports = {
   loadUser,
   requireAuth,
   requireAdmin,
+  requireTeacher,
   requirePlacement,
   rateLimit,
   resetRateLimit,

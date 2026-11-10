@@ -3,11 +3,11 @@
   const user = await requireUser();
 
   // Aluno sem nível ainda precisa fazer o nivelamento.
-  if (user.role !== 'admin' && !user.level) return window.location.replace('/nivelamento');
+  if (user.role === 'student' && !user.level) return window.location.replace('/nivelamento');
 
   renderTopbar(user, 'trilha');
   const $ = (id) => document.getElementById(id);
-  if (user.role === 'admin') $('redo-link').hidden = true;
+  if (user.role !== 'student') $('redo-link').hidden = true;
 
   const { tracks } = await api('/api/tracks');
   const params = new URLSearchParams(window.location.search);
@@ -68,7 +68,7 @@
       $('track-desc').textContent = data.track.description;
 
       const notice = $('other-level-notice');
-      if (user.role !== 'admin' && !data.isOwnLevel) {
+      if (user.role === 'student' && !data.isOwnLevel) {
         notice.hidden = false;
         notice.innerHTML = `Você está explorando a trilha <strong>${data.track.level}</strong>. Seu nível é <strong>${esc(user.level)}</strong> — <a href="?nivel=${esc(user.level)}">voltar para minha trilha</a>.`;
       } else {

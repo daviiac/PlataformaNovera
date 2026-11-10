@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Controle Professor(a)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+
+  <main class="container">
+    <div class="page-head">
+      <span class="eyebrow">Área do professor</span>
+      <h1>Controle <span class="hl">Professor(a)</span></h1>
+      <p class="muted">Acertos e erros de cada aluno em todas as atividades e quizzes, separados por categoria.</p>
+    </div>
+
+    <div class="t-stats" id="t-stats"></div>
+
+    <div class="list-tools">
+      <div class="field search-field">
+        <label class="sr-only" for="t-search">Buscar aluno</label>
+        <input id="t-search" type="search" placeholder="Buscar aluno por nome ou e-mail…">
+      </div>
+      <div class="segmented" id="t-level" role="group" aria-label="Filtrar por nível">
+        <button type="button" data-level="" class="active">Todos</button>
+        <button type="button" data-level="A1">A1</button>
+        <button type="button" data-level="A2">A2</button>
+        <button type="button" data-level="B2">B2</button>
+        <button type="button" data-level="-">Sem nível</button>
+      </div>
+      <div class="field">
+        <label class="sr-only" for="t-cat">Categoria</label>
+        <select id="t-cat"><option value="">Todas as categorias</option></select>
+      </div>
+      <div class="field">
+        <label class="sr-only" for="t-sort">Ordenar</label>
+        <select id="t-sort">
+          <option value="name">Ordenar por nome</option>
+          <option value="recent">Atividade mais recente</option>
+          <option value="accuracy-asc">Menor aproveitamento</option>
+          <option value="accuracy-desc">Maior aproveitamento</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="alert alert-error" id="t-error" role="alert"></p>
+    <div class="t-list" id="t-list"><p class="muted">Carregando…</p></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/professor/professor.js"></script>
+</body>
+</html>

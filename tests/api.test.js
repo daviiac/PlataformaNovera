@@ -62,7 +62,7 @@ async function uploadMaterial(admin, moduleId, name, content, title) {
 
 async function newStudent(name, email, { placed = true } = {}) {
   const c = client();
-  const r = await c('POST', '/api/auth/register', { json: { name, email, password: 'segredo123' } });
+  const r = await c('POST', '/api/auth/register', { json: { name, email, password: 'Lago#Verde2026', level: 'TEST' } });
   assert.equal(r.status, 201);
   if (placed) {
     await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
@@ -101,12 +101,12 @@ test('senha do admin é armazenada apenas como hash bcrypt', async () => {
 
 test('cadastro, e-mail duplicado, login com senha errada e senha com hash', async () => {
   const c = client();
-  const reg = await c('POST', '/api/auth/register', { json: { name: 'Ana', email: 'ana@exemplo.com', password: 'segredo123' } });
+  const reg = await c('POST', '/api/auth/register', { json: { name: 'Ana', email: 'ana@exemplo.com', password: 'Lago#Verde2026', level: 'TEST' } });
   assert.equal(reg.status, 201);
   assert.equal(reg.data.user.role, 'student');
   assert.equal(reg.data.user.level, null);
 
-  const dup = await client()('POST', '/api/auth/register', { json: { name: 'Ana', email: 'ANA@exemplo.com', password: 'segredo123' } });
+  const dup = await client()('POST', '/api/auth/register', { json: { name: 'Ana', email: 'ANA@exemplo.com', password: 'Lago#Verde2026', level: 'TEST' } });
   assert.equal(dup.status, 409);
 
   const bad = await client()('POST', '/api/auth/login', { json: { identifier: 'ana@exemplo.com', password: 'errada' } });

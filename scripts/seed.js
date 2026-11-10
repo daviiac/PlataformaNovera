@@ -18,24 +18,36 @@ const { hashPassword } = require('../src/auth');
 const { DEFAULT_MODULES } = require('../src/tracks');
 const { storage } = require('../src/storage');
 
-async function ensureAdmin({ username, password, name, reset = false }) {
-  if (!username || !password) {
-    throw new Error('Defina ADMIN_USERNAME e ADMIN_PASSWORD no arquivo .env antes de rodar o seed.');
-  }
+/** Cria (ou, com reset, redefine) um usuário da equipe: 'admin' ou 'teacher'. */
+async function ensureStaff({ username, password, name, role, reset = false }) {
+  if (!['admin', 'teacher'].includes(role)) throw new Error('Perfil inválido.');
   const uname = username.trim().toLowerCase();
   const existing = await db.one('SELECT id FROM users WHERE username = $1', [uname]);
 
   if (existing) {
     if (!reset) return { created: false, updated: false };
-    await db.query("UPDATE users SET password_hash = $1, role = 'admin', name = $2 WHERE id = $3",
-      [await hashPassword(password), name, existing.id]);
+    await db.query('UPDATE users SET password_hash = $1, role = $2, name = $3 WHERE id = $4',
+      [await hashPassword(password), role, name, existing.id]);
     await db.query('DELETE FROM sessions WHERE user_id = $1', [existing.id]);
     return { created: false, updated: true };
   }
 
-  await db.query("INSERT INTO users (name, username, password_hash, role) VALUES ($1, $2, $3, 'admin')",
-    [name, uname, await hashPassword(password)]);
+  await db.query('INSERT INTO users (name, username, password_hash, role) VALUES ($1, $2, $3, $4)',
+    [name, uname, await hashPassword(password), role]);
   return { created: true, updated: false };
+}
+
+async function ensureAdmin({ username, password, name, reset = false }) {
+  if (!username || !password) {
+    throw new Error('Defina ADMIN_USERNAME e ADMIN_PASSWORD no arquivo .env antes de rodar o seed.');
+  }
+  return ensureStaff({ username, password, name, role: 'admin', reset });
+}
+
+/** Login do Controle Professor(a): TEACHER_USERNAME / TEACHER_PASSWORD no .env (opcional). */
+async function ensureTeacher({ username, password, name, reset = false }) {
+  if (!username || !password) return null;
+  return ensureStaff({ username, password, name: name || 'Professor(a)', role: 'teacher', reset });
 }
 
 async function ensureDefaultModules() {
@@ -62,12 +74,21 @@ async function main() {
     name: process.env.ADMIN_NAME || 'Administrador',
     reset,
   });
+  const teacher = await ensureTeacher({
+    username: process.env.TEACHER_USERNAME,
+    password: process.env.TEACHER_PASSWORD,
+    name: process.env.TEACHER_NAME,
+    reset,
+  });
   const modules = await ensureDefaultModules();
   const bucketCreated = await storage.ensureBucket();
 
   if (admin.created) console.log(`✔ Administrador "${process.env.ADMIN_USERNAME}" criado (senha armazenada com bcrypt).`);
   else if (admin.updated) console.log(`✔ Senha do administrador "${process.env.ADMIN_USERNAME}" redefinida.`);
   else console.log(`• Administrador "${process.env.ADMIN_USERNAME}" já existe — nada alterado.`);
+  if (teacher?.created) console.log(`✔ Professor(a) "${process.env.TEACHER_USERNAME}" criado (senha armazenada com bcrypt).`);
+  else if (teacher?.updated) console.log(`✔ Senha do professor(a) "${process.env.TEACHER_USERNAME}" redefinida.`);
+  else if (teacher) console.log(`• Professor(a) "${process.env.TEACHER_USERNAME}" já existe — nada alterado.`);
   console.log(modules ? `✔ ${modules} módulos padrão criados.` : '• Módulos já existentes — nada alterado.');
   if (storage.name === 'supabase') {
     console.log(bucketCreated ? '✔ Bucket privado de materiais criado no Supabase Storage.' : '• Bucket de materiais já existe.');
@@ -84,4 +105,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { ensureAdmin, ensureDefaultModules };
+module.exports = { ensureAdmin, ensureTeacher, ensureDefaultModules };

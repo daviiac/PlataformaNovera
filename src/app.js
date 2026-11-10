@@ -112,6 +112,7 @@ app.use('/api/tracks', require('./routes/tracks'));
 app.use('/api/materials', require('./routes/materials'));
 app.use('/api/activities', require('./routes/activities'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/teacher', require('./routes/teacher'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
 
 // ---------- Páginas ----------
@@ -125,6 +126,16 @@ const adminPage = (file) => (req, res) => {
 app.get(['/admin', '/admin.html'], adminPage('admin.html'));
 app.get('/admin/admin.js', adminPage('admin.js'));
 app.get('/admin/admin-activities.js', adminPage('admin-activities.js'));
+
+// Controle Professor(a): página e script entregues só ao professor(a) e ao administrador.
+const teacherPage = (file) => (req, res) => {
+  if (!req.user) return res.redirect('/');
+  if (req.user.role !== 'teacher' && req.user.role !== 'admin') return res.redirect('/trilha');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(ROOT_DIR, 'views', file));
+};
+app.get(['/professor', '/professor.html'], teacherPage('professor.html'));
+app.get('/professor/professor.js', teacherPage('professor.js'));
 
 // Na Vercel os arquivos de /public saem direto da CDN; localmente o Express os serve.
 app.use(express.static(path.join(ROOT_DIR, 'public'), { extensions: ['html'] }));

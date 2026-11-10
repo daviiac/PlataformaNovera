@@ -43,13 +43,56 @@
     });
   });
 
+  // ---------- Cadastro: todos os campos obrigatórios + senha forte com dicas ao vivo ----------
+  const $ = (id) => document.getElementById(id);
+  const reg = {
+    name: $('reg-name'), email: $('reg-email'), level: $('reg-level'), password: $('reg-password'), confirm: $('reg-confirm'),
+  };
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  function evaluate() {
+    const name = reg.name.value.trim();
+    const email = reg.email.value.trim();
+    const pw = reg.password.value;
+    const result = PasswordPolicy.check(pw, { name, email });
+
+    // Medidor e checklist
+    const pct = Math.round((result.passed / result.total) * 100);
+    const bar = $('pw-bar');
+    bar.style.width = `${pw ? pct : 0}%`;
+    bar.className = pw ? `pw-${result.strength.replace('é', 'e')}` : '';
+    $('pw-label').textContent = !pw
+      ? 'Crie uma senha forte'
+      : result.ok ? 'Senha forte ✓' : `Senha ${result.strength} — melhore os itens abaixo`;
+    $('pw-checks').innerHTML = result.checks.map((c) => `<li class="${c.ok ? 'ok' : ''}">${c.ok ? '✓' : '•'} ${Novera.esc(c.label)}</li>`).join('');
+    $('pw-checks').hidden = !pw;
+
+    const match = reg.confirm.value && reg.confirm.value === pw;
+    $('pw-match').textContent = reg.confirm.value ? (match ? '✓ As senhas conferem' : 'As senhas ainda não conferem') : '';
+    $('pw-match').className = `hint ${reg.confirm.value ? (match ? 'hint-ok' : 'hint-bad') : ''}`;
+
+    const missing = [];
+    if (name.length < 2) missing.push('nome');
+    if (!EMAIL_RE.test(email)) missing.push('e-mail válido');
+    if (!reg.level.value) missing.push('nível');
+    if (!result.ok) missing.push('senha forte');
+    if (!match) missing.push('confirmação da senha');
+    $('reg-submit').disabled = missing.length > 0;
+    $('reg-hint').textContent = missing.length ? `Falta: ${missing.join(', ')}.` : 'Tudo certo! Pode criar sua conta.';
+    return { ok: missing.length === 0, missing };
+  }
+  Object.values(reg).forEach((el) => {
+    el.addEventListener('input', evaluate);
+    el.addEventListener('change', evaluate);
+  });
+  evaluate();
+
   forms.register.addEventListener('submit', (e) => {
     e.preventDefault();
-    submit(forms.register, ({ name, email, password, confirm }) => {
-      if (!name || !email || !password) throw new Error('Preencha todos os campos.');
-      if (password.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.');
-      if (password !== confirm) throw new Error('As senhas não conferem.');
-      return api('/api/auth/register', { method: 'POST', body: { name, email, password } });
+    submit(forms.register, ({ name, email, password, level }) => {
+      const state = evaluate();
+      if (!state.ok) throw new Error(`Falta: ${state.missing.join(', ')}.`);
+      return api('/api/auth/register', { method: 'POST', body: { name, email, password, level } });
     });
   });
 })();

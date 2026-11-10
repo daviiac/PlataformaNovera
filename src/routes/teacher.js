@@ -1,0 +1,121 @@
+'use strict';
+
+/**
+ * Controle Professor(a): resultados de todos os alunos cadastrados, por categoria.
+ * Acesso exclusivo do perfil "teacher" (verificado no servidor).
+ */
+const express = require('express');
+const db = require('../db');
+const { ah, requireTeacher } = require('../auth');
+const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
+
+const router = express.Router();
+router.use(requireTeacher);
+
+// Tipos que não têm acerto/erro (só "concluído").
+const UNSCORED = new Set(['grammar_lesson', 'video_lesson']);
+
+const CATEGORIES = [
+  { key: 'placement', label: 'Teste de nivelamento', icon: '🎯' },
+  ...TYPES.filter((t) => !UNSCORED.has(t.key)).map((t) => ({ key: t.key, label: t.label, icon: t.icon })),
+];
+
+/** Descobre tipo, título e nível de cada atividade (próprias da Novera e criadas no painel). */
+async function activityIndex(keys) {
+  const index = new Map();
+  const adminIds = [];
+  for (const k of keys) {
+    const b = BUILTIN_BY_KEY.get(k);
+    if (b) index.set(k, { type: b.type, title: b.title, level: b.level });
+    else if (/^a-\d+$/.test(k)) adminIds.push(Number(k.slice(2)));
+  }
+  if (adminIds.length) {
+    const rows = await db.query('SELECT id, type, title, level FROM activities WHERE id = ANY($1::int[])', [adminIds]);
+    for (const r of rows) index.set(`a-${r.id}`, { type: r.type, title: r.title, level: r.level });
+  }
+  return index;
+}
+
+router.get('/overview', ah(async (req, res) => {
+  const [students, grouped, placements] = await Promise.all([
+    db.query(`SELECT id, name, email, level, created_at FROM users WHERE role = 'student' ORDER BY name, id`),
+    db.query(`
+      SELECT user_id, activity_key, COUNT(*)::int AS attempts, SUM(score)::int AS hits,
+             SUM(total - score)::int AS misses, MAX(created_at) AS last_at
+      FROM activity_attempts GROUP BY user_id, activity_key
+    `),
+    db.query(`
+      SELECT user_id, COUNT(*)::int AS attempts,
+             SUM(score)::int AS points, SUM(max_score - score)::int AS lost, MAX(created_at) AS last_at
+      FROM placement_results GROUP BY user_id
+    `),
+  ]);
+
+  const index = await activityIndex([...new Set(grouped.map((g) => g.activity_key))]);
+  const byUser = new Map(students.map((s) => [s.id, {
+    ...s, categories: {}, done: 0, hits: 0, misses: 0, attempts: 0, lastAt: null,
+  }]));
+
+  const bump = (u, cat, g) => {
+    const c = u.categories[cat] || (u.categories[cat] = { attempts: 0, hits: 0, misses: 0, activities: 0, lastAt: null });
+    c.attempts += g.attempts;
+    c.hits += g.hits;
+    c.misses += g.misses;
+    c.activities += 1;
+    if (!c.lastAt || g.last_at > c.lastAt) c.lastAt = g.last_at;
+    if (!u.lastAt || g.last_at > u.lastAt) u.lastAt = g.last_at;
+  };
+
+  for (const g of grouped) {
+    const u = byUser.get(g.user_id);
+    const info = index.get(g.activity_key);
+    if (!u || !info) continue;
+    if (UNSCORED.has(info.type)) { u.done += 1; continue; }
+    bump(u, info.type, g);
+    u.hits += g.hits;
+    u.misses += g.misses;
+    u.attempts += g.attempts;
+  }
+  for (const p of placements) {
+    const u = byUser.get(p.user_id);
+    if (u) bump(u, 'placement', { attempts: p.attempts, hits: p.points, misses: p.lost, last_at: p.last_at });
+  }
+
+  res.json({ categories: CATEGORIES, students: [...byUser.values()] });
+}));
+
+router.get('/students/:id', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const student = Number.isInteger(id)
+    ? await db.one(`SELECT id, name, email, level, created_at FROM users WHERE id = $1 AND role = 'student'`, [id])
+    : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+
+  const [attempts, placements] = await Promise.all([
+    db.query('SELECT activity_key, score, total, created_at FROM activity_attempts WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 500', [id]),
+    db.query('SELECT level, score, max_score, created_at FROM placement_results WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50', [id]),
+  ]);
+  const index = await activityIndex([...new Set(attempts.map((a) => a.activity_key))]);
+
+  const rows = attempts.map((a) => {
+    const info = index.get(a.activity_key) || { type: null, title: '(atividade removida)', level: null };
+    return {
+      category: info.type,
+      title: info.title,
+      level: info.level,
+      hits: a.score,
+      misses: a.total - a.score,
+      total: a.total,
+      scored: !UNSCORED.has(info.type),
+      at: a.created_at,
+    };
+  });
+  for (const p of placements) {
+    rows.push({ category: 'placement', title: `Nivelamento → ${p.level}`, level: p.level, hits: p.score, misses: p.max_score - p.score, total: p.max_score, scored: true, points: true, at: p.created_at });
+  }
+  rows.sort((a, b) => new Date(b.at) - new Date(a.at));
+
+  res.json({ student, categories: CATEGORIES, attempts: rows });
+}));
+
+module.exports = router;

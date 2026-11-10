@@ -96,12 +96,135 @@
     ta.focus();
   });
 
-  function songLines() {
-    return $('song-lyrics').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
-      const m = l.match(/^(\d+:\d{2}(?::\d{2})?)\s+(.*)$/);
-      return m ? { time: parseTime(m[1]), text: m[2] } : { time: null, text: l };
-    });
+  /** Lê a letra: aceita "m:ss verso", LRC "[mm:ss.xx] verso" ou só o verso. */
+  function parseLine(raw) {
+    const l = raw.trim();
+    let m = l.match(/^\[(\d{1,2}):(\d{2})(?:[.:]\d{1,3})?\]\s*(.*)$/);
+    if (m) return { time: Number(m[1]) * 60 + Number(m[2]), text: m[3].trim() };
+    m = l.match(/^(\d+:\d{2}(?::\d{2})?)\s+(.*)$/);
+    return m ? { time: parseTime(m[1]), text: m[2].trim() } : { time: null, text: l };
   }
+  function songLines() {
+    return $('song-lyrics').value.split('\n').map(parseLine).filter((l) => l.text && !/^\[.*\]$/.test(l.text));
+  }
+  function writeLines(lines) {
+    $('song-lyrics').value = lines.map((l) => (l.time !== null && Number.isFinite(l.time) ? `${fmt(l.time)} ${l.text}` : l.text)).join('\n');
+    songStats();
+  }
+  function songStats() {
+    const lines = songLines();
+    const gaps = lines.reduce((n, l) => n + (l.text.match(/\[[^\]]+\]/g) || []).length, 0);
+    const timed = lines.filter((l) => l.time !== null).length;
+    $('song-stats').textContent = lines.length
+      ? `${lines.length} versos · ${gaps} lacunas · ${timed} com tempo. Respeite os direitos autorais: use letras que você pode usar em aula.`
+      : 'Respeite os direitos autorais: use letras que você pode usar em aula.';
+  }
+  $('song-lyrics').addEventListener('input', songStats);
+
+  // ---------------------------------------------------------------- lacunas automáticas
+  const STOP = new Set(('a an the and or but so if of to in on at by for from with as is are am be been was were do does did '
+    + 'i you he she it we they me him her us them my your his its our their this that these those there here not no yes '
+    + 'oh ooh ah yeah hey la na da uh woah whoa im ive id ill youre dont cant wont aint gonna wanna gotta just like '
+    + 'will would can could should all up down out')
+    .split(/\s+/));
+
+  function gapsFor(level, words) {
+    if (level === 'A1') return 1;
+    if (level === 'A2') return words >= 8 ? 2 : 1;
+    return words <= 4 ? 1 : 2;
+  }
+
+  function autoGaps() {
+    const level = $('act-level').value;
+    const used = new Map();
+    const lines = songLines().map((l) => {
+      const text = l.text.replace(/\[([^\]]+)\]/g, '$1');
+      const tokens = [...text.matchAll(/[A-Za-z][A-Za-z']*/g)].map((m) => ({ word: m[0], index: m.index }));
+      const candidates = tokens.filter((t) => {
+        const w = t.word.toLowerCase().replace(/'/g, '');
+        if (STOP.has(w) || w.length < 3) return false;
+        if (level === 'A1' && w.length > 7) return false;
+        return true;
+      });
+      if (!candidates.length) return { ...l, text };
+      // Prioridade: palavras ainda não usadas; B2 prefere as mais longas, A1 as mais curtas.
+      const ranked = candidates
+        .map((t, i) => ({ ...t, i, seen: used.get(t.word.toLowerCase()) || 0 }))
+        .sort((a, b) => a.seen - b.seen
+          || (level === 'B2' ? b.word.length - a.word.length : level === 'A1' ? a.word.length - b.word.length : 0)
+          || a.i - b.i);
+      // Escolhe sem deixar duas lacunas vizinhas (fica difícil demais).
+      const n = gapsFor(level, tokens.length);
+      const pos = (t) => tokens.findIndex((x) => x.index === t.index);
+      const picked = [];
+      for (const c of ranked) {
+        if (picked.length >= n) break;
+        if (picked.some((p) => Math.abs(pos(p) - pos(c)) < 2)) continue;
+        picked.push(c);
+      }
+      const chosen = picked.sort((a, b) => b.index - a.index); // de trás pra frente
+      let out = text;
+      for (const c of chosen) {
+        out = `${out.slice(0, c.index)}[${c.word}]${out.slice(c.index + c.word.length)}`;
+        used.set(c.word.toLowerCase(), (used.get(c.word.toLowerCase()) || 0) + 1);
+      }
+      return { ...l, text: out };
+    });
+    if (!lines.length) return toast('Cole a letra primeiro.');
+    writeLines(lines);
+    toast(`Lacunas geradas para o nível ${level}. Revise se quiser.`);
+  }
+  $('song-auto').addEventListener('click', autoGaps);
+  $('song-clear').addEventListener('click', () => {
+    writeLines(songLines().map((l) => ({ ...l, text: l.text.replace(/\[([^\]]+)\]/g, '$1') })));
+  });
+
+  // ---------------------------------------------------------------- sincronizar com o vídeo
+  let sync = null;
+  function showSync() {
+    const { lines, i } = sync;
+    $('sync-count').textContent = `Verso ${Math.min(i + 1, lines.length)} de ${lines.length}`;
+    $('sync-next').textContent = i < lines.length ? lines[i].text.replace(/\[([^\]]+)\]/g, '$1') : 'Todos os versos marcados! Clique em Concluir.';
+    $('sync-mark').disabled = i >= lines.length;
+  }
+  function startSync() {
+    if (!player) return toast('Carregue o vídeo primeiro (botão "Carregar vídeo").');
+    const lines = songLines();
+    if (!lines.length) return toast('Cole a letra primeiro.');
+    sync = { lines, i: 0 };
+    $('sync-panel').hidden = false;
+    player.seekTo(0, true);
+    player.playVideo();
+    showSync();
+    $('sync-mark').focus();
+  }
+  function markSync() {
+    if (!sync || sync.i >= sync.lines.length) return;
+    sync.lines[sync.i].time = currentTime();
+    sync.i += 1;
+    writeLines(sync.lines);
+    showSync();
+  }
+  function stopSync() {
+    $('sync-panel').hidden = true;
+    sync = null;
+    player?.pauseVideo();
+  }
+  $('song-sync').addEventListener('click', startSync);
+  $('sync-mark').addEventListener('click', markSync);
+  $('sync-undo').addEventListener('click', () => {
+    if (!sync || !sync.i) return;
+    sync.i -= 1;
+    sync.lines[sync.i].time = null;
+    writeLines(sync.lines);
+    showSync();
+  });
+  $('sync-stop').addEventListener('click', stopSync);
+  document.addEventListener('keydown', (e) => {
+    if (!sync || e.code !== 'Space' || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+    e.preventDefault();
+    markSync();
+  });
 
   // ---------------------------------------------------------------- publicar
   $('act-form').addEventListener('submit', async (e) => {

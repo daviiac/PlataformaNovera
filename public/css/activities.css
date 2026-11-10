@@ -3,6 +3,52 @@
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
 .center { text-align: center; }
 
+/* ---------- Controle Professor(a) ---------- */
+.t-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; margin-bottom: 1.4rem; }
+.t-stat { padding: 1rem 1.1rem; border-radius: var(--radius); border: 1px solid var(--line); background: linear-gradient(180deg, rgba(46, 27, 68, 0.75), rgba(29, 18, 46, 0.75)); display: grid; gap: 0.2rem; }
+.t-stat strong { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; }
+.t-stat span { color: var(--dim); font-size: 0.85rem; }
+.t-list { display: grid; gap: 0.9rem; }
+.t-student { padding: 1.1rem 1.2rem; }
+.t-student-head { display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center; }
+.t-who { display: flex; gap: 0.8rem; align-items: center; min-width: 0; }
+.t-who strong { font-weight: 600; }
+.t-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; background: var(--violet-soft); color: var(--violet); border: 1px solid rgba(169, 123, 255, 0.3); }
+.t-total { display: grid; justify-items: end; text-align: right; }
+.t-pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+.t-total .t-pct { font-size: 1.4rem; }
+.t-pct.good, strong.good { color: var(--success); }
+.t-pct.mid, strong.mid { color: var(--warn); }
+.t-pct.low, strong.low { color: var(--danger); }
+.t-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
+.t-chip { padding: 0.6rem 0.75rem; border-radius: 12px; border: 1px solid var(--line); background: rgba(14, 7, 24, 0.4); display: grid; gap: 0.2rem; }
+.t-chip-name { font-size: 0.85rem; color: var(--muted); }
+.t-chip-nums { display: flex; gap: 0.8rem; font-weight: 600; }
+.t-chip-meta { font-size: 0.78rem; color: var(--dim); }
+.t-hit { color: var(--success); }
+.t-miss { color: var(--danger); }
+.t-empty { margin: 0.8rem 0 0; }
+.t-detail { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.t-group { margin-bottom: 1.2rem; }
+.t-group h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+@media (max-width: 760px) {
+  .t-student-head { grid-template-columns: 1fr; }
+  .t-total { justify-items: start; text-align: left; }
+}
+
+/* ---------- Senha forte (cadastro) ---------- */
+.pw-meter { margin-top: 0.4rem; }
+.pw-bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.pw-bar span { display: block; height: 100%; width: 0; transition: width .2s, background .2s; background: var(--danger); }
+.pw-bar span.pw-media { background: var(--warn); }
+.pw-bar span.pw-forte { background: var(--success); }
+.pw-label { font-size: 0.82rem; color: var(--muted); margin: 0.35rem 0 0.2rem; }
+.pw-checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.1rem; font-size: 0.8rem; color: var(--danger); }
+.pw-checks li.ok { color: var(--success); }
+.hint-ok { color: var(--success) !important; }
+.hint-bad { color: var(--danger) !important; }
+.center-text { text-align: center; margin-top: 0.6rem; }
+
 /* ---------- Submenu do topo ---------- */
 .nav-dd { position: relative; display: inline-flex; }
 .nav-dd-btn {
@@ -278,6 +324,11 @@
 .admin-act img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; }
 .admin-act .grow { flex: 1; min-width: 0; }
 .preview-box { max-width: 520px; }
+.song-steps { color: var(--muted); padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+.song-steps code, .hint code { background: rgba(255, 255, 255, 0.06); padding: 0.05rem 0.3rem; border-radius: 4px; }
+.row-left { justify-content: flex-start; }
+.sync-panel { margin-top: 0.8rem; border-color: var(--line-strong); }
+.sync-next { font-size: 1.15rem; font-weight: 500; margin: 0.3rem 0 0; }
 
 @media (max-width: 760px) {
   .song-layout { grid-template-columns: 1fr; }

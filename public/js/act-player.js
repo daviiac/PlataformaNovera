@@ -1,7 +1,7 @@
 (async () => {
   const { api, requireUser, renderTopbar, esc } = Novera;
   const user = await requireUser();
-  if (user.role !== 'admin' && !user.level) return window.location.replace('/nivelamento');
+  if (user.role === 'student' && !user.level) return window.location.replace('/nivelamento');
 
   const $ = (id) => document.getElementById(id);
   const stage = $('stage');

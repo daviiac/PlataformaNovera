@@ -33,6 +33,7 @@ const Novera = (() => {
   function homeFor(user) {
     if (!user) return '/';
     if (user.role === 'admin') return '/admin';
+    if (user.role === 'teacher') return '/professor';
     if (!user.level) return '/nivelamento';
     return '/trilha';
   }
@@ -76,11 +77,15 @@ const Novera = (() => {
     const el = document.getElementById('topbar');
     if (!el) return;
     const isAdmin = user.role === 'admin';
-    const placed = isAdmin || Boolean(user.level);
+    const isTeacher = user.role === 'teacher';
+    const isStaff = isAdmin || isTeacher;
+    const placed = isStaff || Boolean(user.level);
     const link = (key, href, label) => `<a href="${href}" class="${key === active ? 'active' : ''}">${label}</a>`;
     const items = [];
     if (isAdmin) items.push(link('admin', '/admin', 'Painel admin'));
-    items.push(link('trilha', '/trilha', isAdmin ? 'Trilhas' : 'Minha trilha'));
+    // A aba "Controle Professor(a)" existe só para o professor(a) e o administrador.
+    if (isStaff) items.push(link('professor', '/professor', 'Controle Professor(a)'));
+    items.push(link('trilha', '/trilha', isStaff ? 'Trilhas' : 'Minha trilha'));
     if (placed) {
       items.push(`
         <div class="nav-dd">
@@ -93,9 +98,9 @@ const Novera = (() => {
         </div>`);
       items.push(link('worksheets', '/atividades?tipo=worksheet', 'Worksheets'));
     }
-    if (!isAdmin) items.push(link('nivelamento', '/nivelamento', 'Nivelamento'));
+    if (!isStaff) items.push(link('nivelamento', '/nivelamento', 'Nivelamento'));
     const levelBadge = user.level ? `<span class="level-badge level-${esc(user.level)}">${esc(user.level)}</span>` : '';
-    const roleTag = isAdmin ? '<span class="tag">Admin</span>' : '';
+    const roleTag = isAdmin ? '<span class="tag">Admin</span>' : isTeacher ? '<span class="tag">Professor(a)</span>' : '';
 
     el.innerHTML = `
       <div class="topbar-inner">

@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
 </head>
 <body>
   <main class="auth-layout">
@@ -53,7 +54,7 @@
 
         <form id="register-form" novalidate hidden>
           <h2>Crie sua conta</h2>
-          <p class="muted small">Depois do cadastro você fará um teste rápido de nivelamento.</p>
+          <p class="muted small">Todos os campos são obrigatórios. Não sabe seu nível? Escolha “Não sei” e faça o teste de nivelamento.</p>
           <div class="field">
             <label for="reg-name">Nome</label>
             <input id="reg-name" name="name" autocomplete="name" required minlength="2" maxlength="80">
@@ -63,15 +64,32 @@
             <input id="reg-email" name="email" type="email" autocomplete="email" required>
           </div>
           <div class="field">
+            <label for="reg-level">Seu nível de inglês</label>
+            <select id="reg-level" name="level" required>
+              <option value="">Selecione…</option>
+              <option value="A1">A1 — Iniciante</option>
+              <option value="A2">A2 — Básico</option>
+              <option value="B2">B2 — Intermediário superior</option>
+              <option value="TEST">Não sei — quero fazer o teste de nivelamento</option>
+            </select>
+            <span class="hint">Você pode refazer o nivelamento quando quiser.</span>
+          </div>
+          <div class="field">
             <label for="reg-password">Senha</label>
-            <input id="reg-password" name="password" type="password" autocomplete="new-password" required minlength="8">
-            <span class="hint">Mínimo de 8 caracteres.</span>
+            <input id="reg-password" name="password" type="password" autocomplete="new-password" required minlength="10" aria-describedby="pw-meter">
+            <div class="pw-meter" id="pw-meter" aria-live="polite">
+              <div class="pw-bar"><span id="pw-bar"></span></div>
+              <p class="pw-label" id="pw-label">Crie uma senha forte</p>
+              <ul class="pw-checks" id="pw-checks"></ul>
+            </div>
           </div>
           <div class="field">
             <label for="reg-confirm">Confirmar senha</label>
             <input id="reg-confirm" name="confirm" type="password" autocomplete="new-password" required>
+            <span class="hint" id="pw-match"></span>
           </div>
-          <button class="btn btn-block" type="submit">Criar conta <span class="arrow">→</span></button>
+          <button class="btn btn-block" type="submit" id="reg-submit" disabled>Criar conta <span class="arrow">→</span></button>
+          <p class="hint center-text" id="reg-hint">Preencha todos os campos e crie uma senha forte para continuar.</p>
         </form>
 
         <p class="alert alert-error" id="auth-error" role="alert"></p>
@@ -80,6 +98,7 @@
   </main>
 
   <script src="/js/common.js"></script>
+  <script src="/js/password-policy.js"></script>
   <script src="/js/login.js"></script>
 </body>
 </html>

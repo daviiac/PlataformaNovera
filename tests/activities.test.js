@@ -42,7 +42,7 @@ function client() {
 
 async function student(email, { placed = true } = {}) {
   const c = client();
-  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno', email, password: 'segredo123' } })).status, 201);
+  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno', email, password: 'Lago#Verde2026', level: 'TEST' } })).status, 201);
   if (placed) await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
   return c;
 }
