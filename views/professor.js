@@ -15,27 +15,47 @@
   const catOf = (k) => categories.find((c) => c.key === k) || { label: 'Outra', icon: '•' };
   const dateTime = (v) => (v ? `${formatDate(v)} ${new Date(v).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '—');
 
-  try {
-    ({ categories, students } = await api('/api/teacher/overview'));
-  } catch (err) {
-    $('t-error').textContent = err.message;
-    $('t-list').innerHTML = '';
-    return;
+  // ------------------------------------------------------------ números gerais
+  function renderStats() {
+    const inactive = students.filter((s) => s.active === false).length;
+    const practiced = students.filter((s) => s.attempts > 0 || s.categories.placement);
+    const H = students.reduce((n, s) => n + s.hits, 0);
+    const M = students.reduce((n, s) => n + s.misses, 0);
+    const totalAttempts = students.reduce((n, s) => n + s.attempts, 0);
+    const g = pct(H, M);
+    $('t-stats').innerHTML = `
+      <div class="t-stat"><strong>${students.length}</strong><span>alunos cadastrados${inactive ? ` (${students.length - inactive} ativos · ${inactive} inativo${inactive > 1 ? 's' : ''})` : ''}</span></div>
+      <div class="t-stat"><strong>${practiced.length}</strong><span>já fizeram atividades</span></div>
+      <div class="t-stat"><strong>${totalAttempts}</strong><span>atividades realizadas</span></div>
+      <div class="t-stat"><strong class="${pctClass(g)}">${g === null ? '—' : `${g}%`}</strong><span>aproveitamento geral (✓ ${H} · ✗ ${M})</span></div>`;
   }
 
-  $('t-cat').innerHTML += categories.map((c) => `<option value="${c.key}">${c.icon} ${esc(c.label)}</option>`).join('');
-
-  // ------------------------------------------------------------ números gerais
-  const active = students.filter((s) => s.attempts > 0 || s.categories.placement);
-  const H = students.reduce((n, s) => n + s.hits, 0);
-  const M = students.reduce((n, s) => n + s.misses, 0);
-  const totalAttempts = students.reduce((n, s) => n + s.attempts, 0);
-  const g = pct(H, M);
-  $('t-stats').innerHTML = `
-    <div class="t-stat"><strong>${students.length}</strong><span>alunos cadastrados</span></div>
-    <div class="t-stat"><strong>${active.length}</strong><span>já fizeram atividades</span></div>
-    <div class="t-stat"><strong>${totalAttempts}</strong><span>atividades realizadas</span></div>
-    <div class="t-stat"><strong class="${pctClass(g)}">${g === null ? '—' : `${g}%`}</strong><span>aproveitamento geral (✓ ${H} · ✗ ${M})</span></div>`;
+  // ------------------------------------------------------------ carregar / atualizar
+  async function load() {
+    const btn = $('t-refresh');
+    btn.disabled = true;
+    btn.textContent = '⟳ Atualizando…';
+    try {
+      const data = await api('/api/teacher/overview');
+      if (!categories.length) {
+        $('t-cat').innerHTML += data.categories.map((c) => `<option value="${c.key}">${c.icon} ${esc(c.label)}</option>`).join('');
+      }
+      ({ categories, students } = data);
+      detailCache.clear();
+      $('t-error').textContent = '';
+      $('t-updated').textContent = `Atualizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      renderStats();
+      render();
+      return true;
+    } catch (err) {
+      $('t-error').textContent = err.message;
+      if (!students.length) $('t-list').innerHTML = '';
+      return false;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⟳ Atualizar';
+    }
+  }
 
   // ------------------------------------------------------------ lista
   function chip(c, d) {
@@ -53,12 +73,16 @@
     const p = pct(s.hits, s.misses);
     const cats = categories.filter((c) => s.categories[c.key] && (!cat || c.key === cat));
     const levelBadge = s.level ? `<span class="level-badge level-${esc(s.level)}">${esc(s.level)}</span>` : '<span class="tag">Sem nível</span>';
+    const off = s.active === false;
+    const statusBadge = off
+      ? `<span class="tag tag-off" title="Não consegue entrar na plataforma">⏸ Inativo${s.deactivated_at ? ` desde ${formatDate(s.deactivated_at)}` : ''}</span>`
+      : '';
     return `
-      <article class="card t-student" data-id="${s.id}">
+      <article class="card t-student${off ? ' is-inactive' : ''}" data-id="${s.id}">
         <header class="t-student-head">
           <div class="t-who">
             <span class="t-avatar" aria-hidden="true">${esc((s.name || '?').trim().charAt(0).toUpperCase())}</span>
-            <div><strong>${esc(s.name)}</strong> ${levelBadge}<br><span class="small dim">${esc(s.email || '')} · cadastro ${formatDate(s.created_at)}</span></div>
+            <div><strong>${esc(s.name)}</strong> ${levelBadge} ${statusBadge}<br><span class="small dim">${esc(s.email || '')} · cadastro ${formatDate(s.created_at)}</span></div>
           </div>
           <div class="t-total">
             <span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span>
@@ -78,6 +102,15 @@
           </select>
           <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
           <button type="button" class="btn btn-ghost btn-sm" data-reset-pw title="Gera uma senha provisória para o aluno">🔑 Redefinir senha</button>
+        </div>
+        <div class="t-access">
+          <span class="small"><b>Acesso:</b> ${off
+            ? '<span class="t-miss">inativo — o aluno não consegue entrar na plataforma</span>'
+            : '<span class="t-hit">ativo</span>'}</span>
+          ${off
+            ? '<button type="button" class="btn btn-sm" data-toggle-active>▶ Reativar acesso</button>'
+            : '<button type="button" class="btn btn-ghost btn-sm" data-toggle-active title="O aluno não consegue mais entrar; o histórico é mantido">⏸ Inativar acesso</button>'}
+          <button type="button" class="btn btn-danger btn-sm" data-delete title="Apaga o cadastro e todo o histórico do aluno">🗑 Excluir cadastro</button>
         </div>
         <div class="t-detail" hidden></div>
       </article>`;
@@ -148,12 +181,86 @@
     el.querySelector('[data-copy="pw"]').focus();
   }
 
+  // ------------------------------------------------------------ inativar / reativar acesso
+  async function toggleActive(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const turnOn = s.active === false;
+    const msg = turnOn
+      ? `Reativar o acesso de ${s.name}?\n\nO aluno volta a entrar na plataforma com a mesma senha, e o histórico continua igual.`
+      : `Inativar o acesso de ${s.name}?\n\nO aluno é desconectado na hora e não consegue mais entrar. Os resultados e o histórico ficam guardados, e você pode reativar quando quiser.`;
+    if (!confirm(msg)) return;
+    try {
+      const r = await api(`/api/teacher/students/${id}/active`, { method: 'PATCH', body: { active: turnOn } });
+      s.active = r.active;
+      s.deactivated_at = r.deactivatedAt;
+      Novera.toast(turnOn ? `Acesso de ${s.name} reativado ✓` : `Acesso de ${s.name} inativado.`);
+      renderStats();
+      render();
+    } catch (err) {
+      Novera.toast(err.message);
+    }
+  }
+
+  // ------------------------------------------------------------ excluir cadastro
+  function deleteStudent(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const WORD = 'EXCLUIR';
+    const el = document.createElement('div');
+    el.className = 'viewer';
+    el.innerHTML = `
+      <div class="card reset-card delete-card" role="dialog" aria-modal="true" aria-labelledby="del-title">
+        <h2 id="del-title">🗑 Excluir o cadastro de ${esc(s.name)}?</h2>
+        <p class="small">Vai ser apagado <b>para sempre</b>: a conta (${esc(s.email || '')}), os resultados de todas as atividades,
+          os nivelamentos e o histórico de nível. <b>Isso não pode ser desfeito.</b></p>
+        <p class="small muted">Se o aluno só saiu ou trancou o curso, prefira <b>⏸ Inativar acesso</b>: ele não entra mais, mas o histórico fica guardado.</p>
+        <div class="field">
+          <label for="del-confirm" class="small">Para confirmar, digite <b>${WORD}</b>:</label>
+          <input id="del-confirm" type="text" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="delete-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+          <button type="button" class="btn btn-danger" data-confirm disabled>Excluir cadastro</button>
+        </div>
+      </div>`;
+    const close = () => { el.remove(); document.body.classList.remove('viewer-open'); };
+    const input = el.querySelector('#del-confirm');
+    const go = el.querySelector('[data-confirm]');
+    input.addEventListener('input', () => { go.disabled = input.value.trim().toUpperCase() !== WORD; });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    el.addEventListener('click', async (e) => {
+      if (e.target === el || e.target.closest('[data-close]')) return close();
+      if (!e.target.closest('[data-confirm]') || go.disabled) return;
+      go.disabled = true;
+      go.textContent = 'Excluindo…';
+      try {
+        await api(`/api/teacher/students/${id}`, { method: 'DELETE' });
+        students = students.filter((x) => x.id !== id);
+        detailCache.delete(id);
+        close();
+        Novera.toast(`Cadastro de ${s.name} excluído.`);
+        renderStats();
+        render();
+      } catch (err) {
+        go.disabled = false;
+        go.textContent = 'Excluir cadastro';
+        Novera.toast(err.message);
+      }
+    });
+    document.body.classList.add('viewer-open');
+    document.body.appendChild(el);
+    input.focus();
+  }
+
   function render() {
     const q = $('t-search').value.trim().toLowerCase();
     const cat = $('t-cat').value;
     const sort = $('t-sort').value;
+    const status = $('t-status').value;
     let list = students.filter((s) => (!q || s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
-      && (!level || (level === '-' ? !s.level : s.level === level)));
+      && (!level || (level === '-' ? !s.level : s.level === level))
+      && (!status || (status === 'inactive') === (s.active === false)));
     const acc = (s) => {
       const d = cat ? s.categories[cat] : s;
       return d ? pct(d.hits, d.misses) : null;
@@ -212,6 +319,10 @@
     if (save) return saveLevel(save.closest('.t-student'));
     const reset = e.target.closest('[data-reset-pw]');
     if (reset) return resetPassword(reset.closest('.t-student'));
+    const toggle = e.target.closest('[data-toggle-active]');
+    if (toggle) return toggleActive(toggle.closest('.t-student'));
+    const del = e.target.closest('[data-delete]');
+    if (del) return deleteStudent(del.closest('.t-student'));
     const btn = e.target.closest('[data-detail]');
     if (!btn) return;
     const art = btn.closest('.t-student');
@@ -234,6 +345,10 @@
   $('t-search').addEventListener('input', render);
   $('t-cat').addEventListener('change', render);
   $('t-sort').addEventListener('change', render);
+  $('t-status').addEventListener('change', render);
+  $('t-refresh').addEventListener('click', async () => {
+    if (await load()) Novera.toast('Dados atualizados ✓');
+  });
   $('t-level').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-level]');
     if (!b) return;
@@ -242,5 +357,5 @@
     render();
   });
 
-  render();
+  load();
 })();

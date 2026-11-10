@@ -42,7 +42,8 @@ async function activityIndex(keys) {
 router.get('/overview', ah(async (req, res) => {
   const [students, grouped, placements] = await Promise.all([
     db.query(`
-      SELECT u.id, u.name, u.email, u.level, u.created_at, lc.from_level AS previous_level, lc.created_at AS level_changed_at
+      SELECT u.id, u.name, u.email, u.level, u.created_at, u.active, u.deactivated_at,
+             lc.from_level AS previous_level, lc.created_at AS level_changed_at
       FROM users u
       LEFT JOIN LATERAL (
         SELECT from_level, created_at FROM level_changes WHERE user_id = u.id AND from_level IS NOT NULL
@@ -186,6 +187,41 @@ router.post('/students/:id/reset-password', ah(async (req, res) => {
   // Libera novas tentativas de login para o aluno entrar com a senha provisória.
   await resetRateLimit('login-account', String(student.email || '').toLowerCase());
   res.json({ ok: true, tempPassword: temp, student: { id: student.id, name: student.name, email: student.email } });
+}));
+
+/**
+ * Inativa ou reativa o acesso do aluno (aluno que saiu ou está inativo na escola).
+ * Inativo: não consegue entrar e as sessões abertas são encerradas na hora. O histórico é mantido.
+ */
+router.patch('/students/:id/active', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  if (typeof req.body?.active !== 'boolean') return res.status(400).json({ error: 'Informe se o acesso fica ativo ou inativo.' });
+  const active = req.body.active;
+  const student = Number.isInteger(id)
+    ? await db.one("SELECT id, name, active FROM users WHERE id = $1 AND role = 'student'", [id])
+    : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+
+  const row = await db.one(
+    `UPDATE users SET active = $1::boolean, deactivated_at = CASE WHEN $1::boolean THEN NULL ELSE COALESCE(deactivated_at, now()) END
+     WHERE id = $2 RETURNING active, deactivated_at`,
+    [active, id],
+  );
+  if (!active) await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
+  res.json({ ok: true, active: row.active, deactivatedAt: row.deactivated_at });
+}));
+
+/**
+ * Exclui o cadastro do aluno de vez: conta, resultados das atividades, nivelamentos e histórico
+ * de nível (apagados em cascata pelo banco). Não dá para desfazer.
+ */
+router.delete('/students/:id', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const removed = Number.isInteger(id)
+    ? await db.one("DELETE FROM users WHERE id = $1 AND role = 'student' RETURNING id, name", [id])
+    : null;
+  if (!removed) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  res.json({ ok: true, removed });
 }));
 
 module.exports = router;

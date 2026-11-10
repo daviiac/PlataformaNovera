@@ -158,6 +158,9 @@ const LOCKDOWN = [
 const MIGRATIONS = [
   // Senha provisória (redefinida pela professora): o aluno precisa criar uma nova no próximo login.
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false',
+  // Aluno inativo na escola: a professora desliga o acesso (não entra e é desconectado na hora).
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true',
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ',
   `DO $$
    DECLARE c record;
    BEGIN

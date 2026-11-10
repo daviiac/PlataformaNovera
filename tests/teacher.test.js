@@ -221,3 +221,57 @@ test('migração: banco antigo passa a aceitar o perfil professor', async () => 
   await assert.rejects(pg.query("INSERT INTO users (name, username, password_hash, role) VALUES ('h', 'h', 'h', 'hacker')"));
   await pg.close();
 });
+
+test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', async () => {
+  const s = client();
+  const reg = await s('POST', '/api/auth/register', { json: { name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  assert.equal(reg.status, 201);
+  const sid = reg.data.user.id;
+  await s('POST', '/api/activities/b-listen-at-the-bakery/attempts', { json: { score: 3, total: 6 } });
+  assert.equal((await s('GET', '/api/tracks')).status, 200);
+
+  const t = await login(TEACHER.user, TEACHER.pass);
+  assert.equal((await t('PATCH', `/api/teacher/students/${sid}/active`, { json: {} })).status, 400);
+
+  // Inativar: desconecta na hora, não entra mais e aparece como inativo para a professora.
+  const off = await t('PATCH', `/api/teacher/students/${sid}/active`, { json: { active: false } });
+  assert.equal(off.status, 200);
+  assert.equal(off.data.active, false);
+  assert.ok(off.data.deactivatedAt);
+  assert.equal((await s('GET', '/api/tracks')).status, 401, 'sessão aberta encerrada');
+  assert.equal((await s('GET', '/api/auth/me')).data.user, null);
+  const blocked = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi@exemplo.com', password: STRONG } });
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.data.code, 'ACCOUNT_INACTIVE');
+  // Senha errada continua dando a mensagem genérica (não revela a situação da conta).
+  const wrong = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi@exemplo.com', password: 'Errada#2026x' } });
+  assert.equal(wrong.status, 401);
+  const listed = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid);
+  assert.equal(listed.active, false);
+  assert.equal(listed.hits, 3, 'histórico mantido');
+
+  // Reativar: entra de novo com a mesma senha.
+  const on = await t('PATCH', `/api/teacher/students/${sid}/active`, { json: { active: true } });
+  assert.equal(on.data.active, true);
+  assert.equal(on.data.deactivatedAt, null);
+  const back = await login('gabi@exemplo.com', STRONG);
+  assert.equal((await back('GET', '/api/tracks')).status, 200);
+
+  // Professor(a) não inativa nem exclui outra pessoa da equipe.
+  const staff = await db.one("SELECT id FROM users WHERE username = $1", [ADMIN.user]);
+  assert.equal((await t('PATCH', `/api/teacher/students/${staff.id}/active`, { json: { active: false } })).status, 404);
+  assert.equal((await t('DELETE', `/api/teacher/students/${staff.id}`)).status, 404);
+  // Aluno não usa essas rotas.
+  assert.equal((await back('DELETE', `/api/teacher/students/${sid}`)).status, 403);
+
+  // Excluir: conta e histórico somem; o e-mail fica livre para um novo cadastro.
+  const del = await t('DELETE', `/api/teacher/students/${sid}`);
+  assert.equal(del.status, 200);
+  assert.equal((await back('GET', '/api/tracks')).status, 401);
+  assert.equal((await t('GET', `/api/teacher/students/${sid}`)).status, 404);
+  assert.equal((await db.query('SELECT 1 FROM activity_attempts WHERE user_id = $1', [sid])).length, 0);
+  assert.equal((await db.query('SELECT 1 FROM level_changes WHERE user_id = $1', [sid])).length, 0);
+  assert.equal((await t('DELETE', `/api/teacher/students/${sid}`)).status, 404);
+  const again = await client()('POST', '/api/auth/register', { json: { name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  assert.equal(again.status, 201);
+});

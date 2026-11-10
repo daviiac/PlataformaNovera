@@ -14,10 +14,16 @@
   <header class="topbar" id="topbar"></header>
 
   <main class="container">
-    <div class="page-head">
-      <span class="eyebrow">Área do professor</span>
-      <h1>Controle <span class="hl">Professor(a)</span></h1>
-      <p class="muted">Acertos e erros de cada aluno em todas as atividades e quizzes, separados por categoria.</p>
+    <div class="page-head t-head">
+      <div>
+        <span class="eyebrow">Área do professor</span>
+        <h1>Controle <span class="hl">Professor(a)</span></h1>
+        <p class="muted">Acertos e erros de cada aluno em todas as atividades e quizzes, separados por categoria.</p>
+      </div>
+      <div class="t-refresh">
+        <button type="button" class="btn btn-ghost btn-sm" id="t-refresh" title="Busca os dados mais recentes dos alunos">⟳ Atualizar</button>
+        <span class="small dim" id="t-updated" aria-live="polite"></span>
+      </div>
     </div>
 
     <div class="t-stats" id="t-stats"></div>
@@ -33,6 +39,14 @@
         <button type="button" data-level="A2">A2</button>
         <button type="button" data-level="B2">B2</button>
         <button type="button" data-level="-">Sem nível</button>
+      </div>
+      <div class="field">
+        <label class="sr-only" for="t-status">Situação do acesso</label>
+        <select id="t-status">
+          <option value="">Ativos e inativos</option>
+          <option value="active">Só ativos</option>
+          <option value="inactive">Só inativos</option>
+        </select>
       </div>
       <div class="field">
         <label class="sr-only" for="t-cat">Categoria</label>

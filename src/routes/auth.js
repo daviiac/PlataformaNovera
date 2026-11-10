@@ -88,6 +88,13 @@ router.post('/login', loginLimiter, ah(async (req, res) => {
   const user = await db.one('SELECT * FROM users WHERE email = $1 OR username = $1', [identifier]);
   const ok = await verifyPassword(password, user?.password_hash);
   if (!user || !ok) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  // Só depois de conferir a senha, para não revelar a situação da conta a quem não a conhece.
+  if (user.active === false) {
+    return res.status(403).json({
+      error: 'Seu acesso à Plataforma Novera está inativo. Fale com a escola ou com sua professora para reativar.',
+      code: 'ACCOUNT_INACTIVE',
+    });
+  }
 
   await resetRateLimit('login-id', `${req.ip}|${identifier}`);
   await createSession(res, user.id);
