@@ -29,8 +29,16 @@ const registerLimiter = rateLimit([
 ]);
 
 function publicUser(u) {
-  return { id: u.id, name: u.name, email: u.email, username: u.username, role: u.role, level: u.level };
+  return {
+    id: u.id, name: u.name, email: u.email, username: u.username, role: u.role, level: u.level,
+    mustChangePassword: Boolean(u.mustChangePassword ?? u.must_change_password),
+  };
 }
+
+// Troca de senha: limita tentativas por conta.
+const changeLimiter = rateLimit([
+  { name: 'change-password', windowMs: 15 * MIN, max: 10, keyFn: (req) => `u${req.user?.id}` },
+]);
 
 router.post('/register', registerLimiter, ah(async (req, res) => {
   const name = str(req.body?.name);
@@ -89,6 +97,40 @@ router.post('/login', loginLimiter, ah(async (req, res) => {
 router.post('/logout', ah(async (req, res) => {
   await destroySession(req, res);
   res.json({ ok: true });
+}));
+
+/**
+ * Criar senha nova.
+ *  - Com senha provisória (redefinida pela professora): basta a senha nova — o aluno acabou de
+ *    entrar com a provisória.
+ *  - Troca normal: exige a senha atual.
+ * Encerra as outras sessões do usuário e mantém a atual.
+ */
+router.post('/change-password', changeLimiter, ah(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Faça login para continuar.', code: 'UNAUTHENTICATED' });
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const current = typeof req.body?.current === 'string' ? req.body.current : '';
+  const row = await db.one('SELECT password_hash, must_change_password FROM users WHERE id = $1', [req.user.id]);
+  if (!row) return res.status(401).json({ error: 'Faça login para continuar.', code: 'UNAUTHENTICATED' });
+
+  if (!row.must_change_password && !(await verifyPassword(current, row.password_hash))) {
+    return res.status(400).json({ error: 'A senha atual está incorreta.', code: 'WRONG_PASSWORD' });
+  }
+  const strength = PasswordPolicy.check(password, { name: req.user.name, email: req.user.email });
+  if (!strength.ok) {
+    const missing = strength.checks.filter((c) => !c.ok).map((c) => c.label.toLowerCase());
+    return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });
+  }
+  if (await verifyPassword(password, row.password_hash)) {
+    return res.status(400).json({ error: 'A senha nova precisa ser diferente da atual.', code: 'SAME_PASSWORD' });
+  }
+
+  const hash = await hashPassword(password);
+  await db.query('UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2', [hash, req.user.id]);
+  const token = req.cookies?.novera_session;
+  const keep = token ? require('node:crypto').createHash('sha256').update(token).digest('hex') : '';
+  await db.query('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [req.user.id, keep]);
+  res.json({ ok: true, user: publicUser({ ...req.user, mustChangePassword: false }) });
 }));
 
 // Retorna { user: null } quando não há sessão (evita 401 "barulhento" na tela de login).

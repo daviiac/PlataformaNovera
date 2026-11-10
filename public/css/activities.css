@@ -50,6 +50,17 @@
 .hint-ok { color: var(--success) !important; }
 .hint-bad { color: var(--danger) !important; }
 .center-text { text-align: center; margin-top: 0.6rem; }
+.link-btn { font: inherit; background: none; border: 0; padding: 0; color: var(--violet); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: #fff; }
+#forgot-help { margin-top: 0.6rem; line-height: 1.5; }
+.newpw-layout { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 1.4rem; padding: 2rem 1rem; }
+.newpw-layout .auth-card { max-width: 440px; }
+/* Senha provisória mostrada à professora */
+.reset-card { width: min(460px, 100%); padding: 1.5rem; display: grid; gap: 0.6rem; text-align: center; box-shadow: var(--shadow), var(--glow); }
+.reset-card h2 { margin: 0; font-size: 1.3rem; }
+.reset-card p { margin: 0; }
+.temp-pw { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin: 0.9rem 0; flex-wrap: wrap; }
+.temp-pw code { font-size: 1.35rem; letter-spacing: 0.06em; padding: 0.55rem 0.9rem; border-radius: 10px; background: rgba(0, 0, 0, 0.35); border: 1px dashed var(--line-strong); user-select: all; }
 
 /* ---------- Submenu do topo ---------- */
 .nav-dd { position: relative; display: inline-flex; }

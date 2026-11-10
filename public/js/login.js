@@ -20,6 +20,11 @@
     forms[name].querySelector('input').focus();
   }
   tabs.forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  document.getElementById('forgot-btn').addEventListener('click', (e) => {
+    const help = document.getElementById('forgot-help');
+    help.hidden = !help.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!help.hidden));
+  });
   if (window.location.hash === '#cadastro') showTab('register');
 
   async function submit(form, fn) {

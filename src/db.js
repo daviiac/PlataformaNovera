@@ -156,6 +156,8 @@ const LOCKDOWN = [
  * - Perfil "teacher" (Controle Professor(a)): amplia o CHECK de users.role, só se ainda não aceitar.
  */
 const MIGRATIONS = [
+  // Senha provisória (redefinida pela professora): o aluno precisa criar uma nova no próximo login.
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false',
   `DO $$
    DECLARE c record;
    BEGIN

@@ -32,6 +32,7 @@ const Novera = (() => {
   /** Página inicial adequada ao perfil/estado do usuário. */
   function homeFor(user) {
     if (!user) return '/';
+    if (user.mustChangePassword) return '/nova-senha';
     if (user.role === 'admin') return '/admin';
     if (user.role === 'teacher') return '/professor';
     if (!user.level) return '/nivelamento';
@@ -43,6 +44,11 @@ const Novera = (() => {
     const user = await currentUser();
     if (!user) {
       window.location.replace('/');
+      return new Promise(() => {});
+    }
+    // Senha provisória: primeiro cria a senha nova.
+    if (user.mustChangePassword && window.location.pathname !== '/nova-senha') {
+      window.location.replace('/nova-senha');
       return new Promise(() => {});
     }
     return user;

@@ -77,6 +77,7 @@
             ${['A1', 'A2', 'B2'].map((l) => `<option value="${l}" ${l === s.level ? 'selected' : ''}>${l}</option>`).join('')}
           </select>
           <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-reset-pw title="Gera uma senha provisória para o aluno">🔑 Redefinir senha</button>
         </div>
         <div class="t-detail" hidden></div>
       </article>`;
@@ -100,6 +101,51 @@
     } catch (err) {
       Novera.toast(err.message);
     }
+  }
+
+  // ------------------------------------------------------------ redefinir senha
+  async function resetPassword(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const msg = `Redefinir a senha de ${s.name}?\n\nVou gerar uma senha provisória para você passar ao aluno. A senha antiga deixa de funcionar e, no próximo login, ele cria uma senha nova.`;
+    if (!confirm(msg)) return;
+    let r;
+    try {
+      r = await api(`/api/teacher/students/${id}/reset-password`, { method: 'POST' });
+    } catch (err) {
+      return Novera.toast(err.message);
+    }
+    const first = s.name.split(' ')[0];
+    const text = `Olá, ${first}! Sua senha provisória da Plataforma Novera é: ${r.tempPassword}\n`
+      + `Entre em ${location.origin} com o seu e-mail (${s.email}) e essa senha. Logo depois, o sistema vai pedir para você criar uma senha nova.`;
+    const el = document.createElement('div');
+    el.className = 'viewer';
+    el.innerHTML = `
+      <div class="card reset-card" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+        <h2 id="reset-title">🔑 Senha provisória de ${esc(first)}</h2>
+        <p class="small muted">Copie e envie para o aluno. <b>Ela aparece só agora</b> — se fechar sem copiar, é só redefinir de novo.</p>
+        <div class="temp-pw"><code>${esc(r.tempPassword)}</code>
+          <button type="button" class="btn btn-sm" data-copy="pw">Copiar senha</button></div>
+        <p class="small dim">E-mail de acesso: ${esc(s.email || '')}</p>
+        <button type="button" class="btn btn-ghost btn-block" data-copy="msg">Copiar mensagem pronta para o WhatsApp</button>
+        <p class="small dim">Ao entrar, o aluno é obrigado a criar uma senha nova (você não fica sabendo qual).</p>
+        <button type="button" class="btn btn-block" data-close>Fechar</button>
+      </div>`;
+    const close = () => { el.remove(); document.body.classList.remove('viewer-open'); };
+    el.addEventListener('click', async (e) => {
+      if (e.target === el || e.target.closest('[data-close]')) return close();
+      const c = e.target.closest('[data-copy]');
+      if (!c) return;
+      try {
+        await navigator.clipboard.writeText(c.dataset.copy === 'pw' ? r.tempPassword : text);
+        Novera.toast(c.dataset.copy === 'pw' ? 'Senha copiada ✓' : 'Mensagem copiada ✓');
+      } catch {
+        Novera.toast('Não consegui copiar — selecione a senha e copie manualmente.');
+      }
+    });
+    document.body.classList.add('viewer-open');
+    document.body.appendChild(el);
+    el.querySelector('[data-copy="pw"]').focus();
   }
 
   function render() {
@@ -164,6 +210,8 @@
   $('t-list').addEventListener('click', async (e) => {
     const save = e.target.closest('[data-save-level]');
     if (save) return saveLevel(save.closest('.t-student'));
+    const reset = e.target.closest('[data-reset-pw]');
+    if (reset) return resetPassword(reset.closest('.t-student'));
     const btn = e.target.closest('[data-detail]');
     if (!btn) return;
     const art = btn.closest('.t-student');

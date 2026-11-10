@@ -51,7 +51,7 @@ const loadUser = ah(async (req, res, next) => {
   if (!token) return next();
 
   const row = await db.one(`
-    SELECT u.id, u.name, u.email, u.username, u.role, u.level, s.expires_at, s.token_hash
+    SELECT u.id, u.name, u.email, u.username, u.role, u.level, u.must_change_password, s.expires_at, s.token_hash
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = $1
   `, [sha256(token)]);
@@ -62,7 +62,10 @@ const loadUser = ah(async (req, res, next) => {
     return next();
   }
 
-  req.user = { id: row.id, name: row.name, email: row.email, username: row.username, role: row.role, level: row.level };
+  req.user = {
+    id: row.id, name: row.name, email: row.email, username: row.username, role: row.role, level: row.level,
+    mustChangePassword: Boolean(row.must_change_password),
+  };
   next();
 });
 

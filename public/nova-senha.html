@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <!-- build: 2026-11-10 -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novera · Crie sua senha nova</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/activities.css">
+</head>
+<body>
+  <main class="newpw-layout">
+    <a class="brand" href="/"><span class="brand-mark">N</span><span class="brand-text"><strong>NOVERA</strong><span>ACADEMY</span></span></a>
+    <div class="auth-card card">
+      <form id="newpw-form" novalidate>
+        <span class="eyebrow">Senha provisória</span>
+        <h2>Crie sua senha nova</h2>
+        <p class="muted small" id="newpw-intro">Você entrou com a senha provisória que sua professora gerou. Para continuar, crie uma senha só sua — ninguém mais vai saber qual é.</p>
+        <div class="field">
+          <label for="new-password">Senha nova</label>
+          <input id="new-password" name="password" type="password" autocomplete="new-password" required maxlength="128" aria-describedby="pw-meter">
+          <div class="pw-meter" id="pw-meter" aria-live="polite">
+            <div class="pw-bar"><span id="pw-bar"></span></div>
+            <p class="pw-label" id="pw-label">Crie uma senha forte</p>
+            <ul class="pw-checks" id="pw-checks"></ul>
+          </div>
+        </div>
+        <div class="field">
+          <label for="new-confirm">Confirmar senha nova</label>
+          <input id="new-confirm" name="confirm" type="password" autocomplete="new-password" required>
+          <span class="hint" id="pw-match"></span>
+        </div>
+        <button class="btn btn-block" type="submit" id="newpw-submit" disabled>Salvar senha nova <span class="arrow">→</span></button>
+        <p class="hint center-text"><button type="button" class="link-btn" id="newpw-logout">Sair</button></p>
+      </form>
+      <p class="alert alert-error" id="newpw-error" role="alert"></p>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/password-policy.js"></script>
+  <script src="/js/new-password.js"></script>
+</body>
+</html>

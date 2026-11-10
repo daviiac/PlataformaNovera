@@ -4,9 +4,11 @@
  * Controle Professor(a): resultados de todos os alunos cadastrados, por categoria.
  * Acesso exclusivo do perfil "teacher" (verificado no servidor).
  */
+const crypto = require('node:crypto');
 const express = require('express');
 const db = require('../db');
-const { ah, requireTeacher } = require('../auth');
+const { ah, requireTeacher, hashPassword, resetRateLimit } = require('../auth');
+const PasswordPolicy = require('../../public/js/password-policy');
 const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
 const { ORDER, levelHistory, unlockedLevels } = require('../levels');
 
@@ -150,6 +152,40 @@ router.patch('/students/:id/level', ah(async (req, res) => {
     [id, student.level, level, req.user.id]);
   const unlocked = await unlockedLevels({ id, role: 'student', level });
   res.json({ ok: true, from: student.level, to: level, unlocked });
+}));
+
+/** Senha provisória legível (sem 0/O, 1/l/I) que sempre passa nas regras de senha. */
+function temporaryPassword(ctx) {
+  const pick = (set) => set[crypto.randomInt(set.length)];
+  const UP = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const LO = 'abcdefghjkmnpqrstuvwxyz';
+  const DG = '23456789';
+  const SY = '#@!$%';
+  for (;;) {
+    const part = (n) => Array.from({ length: n }, () => pick(pick([UP, LO, DG]))).join('');
+    const pw = `${pick(UP)}${pick(LO)}${part(2)}-${part(4)}-${pick(DG)}${pick(SY)}`;
+    if (PasswordPolicy.check(pw, ctx).ok) return pw;
+  }
+}
+
+/**
+ * Redefine a senha de um aluno (professor(a) e administrador).
+ * Gera uma senha provisória, mostrada UMA vez para a professora passar ao aluno; no próximo
+ * login o aluno é obrigado a criar uma senha nova. As sessões abertas do aluno são encerradas.
+ */
+router.post('/students/:id/reset-password', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const student = Number.isInteger(id)
+    ? await db.one("SELECT id, name, email FROM users WHERE id = $1 AND role = 'student'", [id])
+    : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+
+  const temp = temporaryPassword({ name: student.name, email: student.email });
+  await db.query('UPDATE users SET password_hash = $1, must_change_password = true WHERE id = $2', [await hashPassword(temp), id]);
+  await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
+  // Libera novas tentativas de login para o aluno entrar com a senha provisória.
+  await resetRateLimit('login-account', String(student.email || '').toLowerCase());
+  res.json({ ok: true, tempPassword: temp, student: { id: student.id, name: student.name, email: student.email } });
 }));
 
 module.exports = router;

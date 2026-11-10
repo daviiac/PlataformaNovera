@@ -73,6 +73,16 @@ app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(loadUser);
 
+// Senha provisória: até criar uma senha nova, o aluno só pode ver quem está logado,
+// sair ou trocar a senha (verificado no servidor, não dá para pular pelo navegador).
+const ALLOWED_WITH_TEMP_PASSWORD = new Set(['/api/auth/me', '/api/auth/logout', '/api/auth/change-password', '/api/health']);
+app.use('/api', (req, res, next) => {
+  if (req.user?.mustChangePassword && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split('?')[0])) {
+    return res.status(403).json({ error: 'Crie uma senha nova para continuar.', code: 'PASSWORD_CHANGE_REQUIRED' });
+  }
+  next();
+});
+
 // ---------- Diagnóstico ----------
 // Público: só diz se o serviço está de pé (sem revelar configuração).
 // Administrador logado: vê também quais configurações existem (nunca os valores).

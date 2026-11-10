@@ -63,6 +63,47 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+test('professora redefine a senha: senha provisória e troca obrigatória no próximo login', async () => {
+  const email = 'esqueci@exemplo.com';
+  const s = client();
+  assert.equal((await s('POST', '/api/auth/register', { json: { name: 'Clara Nunes', email, password: STRONG, level: 'A1' } })).status, 201);
+  const sid = (await s('GET', '/api/auth/me')).data.user.id;
+
+  // Aluno não pode redefinir senha de ninguém.
+  assert.equal((await s('POST', `/api/teacher/students/${sid}/reset-password`)).status, 403);
+
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const r = await t('POST', `/api/teacher/students/${sid}/reset-password`);
+  assert.equal(r.status, 200);
+  const temp = r.data.tempPassword;
+  assert.ok(PasswordPolicy.check(temp, { name: 'Clara Nunes', email }).ok, 'provisória passa nas regras');
+
+  // Sessão antiga encerrada e senha antiga deixa de funcionar.
+  assert.equal((await s('GET', '/api/auth/me')).data.user, null);
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } })).status, 401);
+
+  // Entra com a provisória: só pode trocar a senha.
+  const c = await login(email, temp);
+  assert.equal((await c('GET', '/api/auth/me')).data.user.mustChangePassword, true);
+  const blocked = await c('GET', '/api/tracks');
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.data.code, 'PASSWORD_CHANGE_REQUIRED');
+  assert.equal((await c('POST', '/api/auth/change-password', { json: { password: 'fraca' } })).data.code, 'WEAK_PASSWORD');
+  assert.equal((await c('POST', '/api/auth/change-password', { json: { password: temp } })).data.code, 'SAME_PASSWORD');
+  const ok = await c('POST', '/api/auth/change-password', { json: { password: 'Nova#Senha77' } });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.user.mustChangePassword, false);
+
+  // Acesso liberado e a nova senha funciona; troca normal exige a senha atual.
+  assert.equal((await c('GET', '/api/tracks')).status, 200);
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Nova#Senha77' } })).status, 200);
+  assert.equal((await c('POST', '/api/auth/change-password', { json: { password: 'Outra#Senha88' } })).data.code, 'WRONG_PASSWORD');
+
+  // Professor(a) não redefine senha de equipe.
+  const adminId = (await db.one("SELECT id FROM users WHERE role = 'admin' LIMIT 1")).id;
+  assert.equal((await t('POST', `/api/teacher/students/${adminId}/reset-password`)).status, 404);
+});
+
 test('política de senha: aponta o que falta e aceita senha forte', () => {
   const weak = PasswordPolicy.check('abc', {});
   assert.equal(weak.ok, false);
