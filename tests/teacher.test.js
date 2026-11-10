@@ -68,7 +68,8 @@ test('política de senha: aponta o que falta e aceita senha forte', () => {
   assert.equal(weak.ok, false);
   assert.equal(weak.strength, 'fraca');
   assert.equal(PasswordPolicy.check('senha123456', {}).ok, false);
-  assert.equal(PasswordPolicy.check('Abcdefgh#12', {}).ok, false, 'sequência abcd');
+  assert.ok(!PasswordPolicy.check('Abc#1', {}).checks.some((c) => c.id === 'length' || c.id === 'common'), 'sem regras de tamanho/óbvio');
+  assert.equal(PasswordPolicy.check('Abc#1', {}).ok, true);
   assert.equal(PasswordPolicy.check('Mariana#Sol2026', { name: 'Mariana Souza' }).ok, false, 'contém o nome');
   assert.equal(PasswordPolicy.check('Joaozinho#99x', { email: 'joaozinho@x.com' }).ok, false, 'contém o e-mail');
   assert.equal(PasswordPolicy.check('Lago#Verde2026', { name: 'Ana', email: 'ana@x.com' }).ok, true);
