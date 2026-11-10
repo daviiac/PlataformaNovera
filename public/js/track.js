@@ -208,16 +208,41 @@
             <span class="meta">Use as setas para passar os slides · ⛶ no canto para tela cheia</span>
           </div>
           <div class="viewer-actions">
+            <a class="btn btn-ghost btn-sm" href="${esc(lesson.url)}" target="_blank" rel="noopener">↗ <span class="btn-label">Abrir em nova aba</span></a>
             <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Fechar">✕</button>
           </div>
         </div>
         <div class="viewer-body">
           <div class="viewer-loading">Carregando apresentação…</div>
+          <div class="viewer-message canva-fallback" hidden>
+            <div class="mat-icon kind-video">AULA</div>
+            <p><strong>Seu navegador não mostrou a apresentação aqui dentro.</strong></p>
+            <p class="small">Sem problema: abra no modo de visualização em uma nova aba.</p>
+            <a class="btn" href="${esc(lesson.url)}" target="_blank" rel="noopener">Abrir apresentação ↗</a>
+          </div>
           <iframe class="canva-frame" src="${esc(lesson.embed)}" title="${esc(lesson.title)}"
                   allow="fullscreen" allowfullscreen loading="eager" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
       </div>`;
+    // Se o navegador bloquear o quadro (política de segurança, extensão, cache antigo…),
+    // troca na hora pelo botão de abrir em nova aba: o aluno nunca fica sem a aula.
+    const frame = el.querySelector('iframe');
+    let loaded = false;
+    const fallback = () => {
+      if (!el.isConnected) return;
+      frame.remove();
+      el.querySelector('.viewer-loading')?.remove();
+      el.querySelector('.canva-fallback').hidden = false;
+    };
+    const onViolation = (e) => {
+      if (/canva\.com/.test(e.blockedURI || '') || e.violatedDirective?.startsWith('frame-src')) fallback();
+    };
+    document.addEventListener('securitypolicyviolation', onViolation);
+    frame.addEventListener('load', () => { loaded = true; }, { once: true });
+    const slow = setTimeout(() => { if (!loaded) fallback(); }, 20000);
     const close = () => {
+      clearTimeout(slow);
+      document.removeEventListener('securitypolicyviolation', onViolation);
       el.remove();
       document.removeEventListener('keydown', onKey);
       document.body.classList.remove('viewer-open');

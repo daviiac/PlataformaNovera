@@ -22,7 +22,7 @@ const YT_SCRIPT = ' https://www.youtube.com https://s.ytimg.com';
 const YT_FRAME = ' https://www.youtube-nocookie.com https://www.youtube.com';
 const YT_IMG = ' https://i.ytimg.com';
 // Canva: apresentações das aulas no modo de visualização (?embed).
-const CANVA_FRAME = ' https://www.canva.com';
+const CANVA_FRAME = ' https://www.canva.com https://canva.com';
 const CSP = [
   "default-src 'self'",
   `script-src 'self'${YT_SCRIPT}`,
@@ -148,7 +148,12 @@ app.get(['/professor', '/professor.html'], teacherPage('professor.html'));
 app.get('/professor/professor.js', teacherPage('professor.js'));
 
 // Na Vercel os arquivos de /public saem direto da CDN; localmente o Express os serve.
-app.use(express.static(path.join(ROOT_DIR, 'public'), { extensions: ['html'] }));
+// Páginas HTML nunca ficam em cache: assim o navegador sempre recebe os cabeçalhos de
+// segurança atuais (um cache antigo bloqueava as apresentações do Canva).
+app.use(express.static(path.join(ROOT_DIR, 'public'), {
+  extensions: ['html'],
+  setHeaders: (res, file) => { if (file.endsWith('.html')) res.setHeader('Cache-Control', 'no-store, max-age=0'); },
+}));
 app.use((req, res) => res.status(404).sendFile(path.join(ROOT_DIR, 'public', 'index.html')));
 
 // ---------- Erros ----------
