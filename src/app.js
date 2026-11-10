@@ -79,8 +79,12 @@ app.use(loadUser);
 app.get('/api/health', async (req, res) => {
   const db = require('./db');
   let dbError = null;
+  let dbMs = null;
   try {
     await db.query('SELECT 1');
+    const t = process.hrtime.bigint();
+    await db.query('SELECT 1');
+    dbMs = Number(process.hrtime.bigint() - t) / 1e6;
   } catch (err) {
     dbError = err;
   }
@@ -104,6 +108,9 @@ app.get('/api/health', async (req, res) => {
     project: (config.SUPABASE_URL.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) || [])[1] || null,
     storage: storage.name,
     region: process.env.VERCEL_REGION || null,
+    // Desempenho: tempo de uma consulta simples e o host do banco (só o nome, sem credenciais).
+    dbMs: dbMs === null ? null : Math.round(dbMs * 10) / 10,
+    dbHost: (() => { try { return new URL(config.DATABASE_URL).hostname; } catch { return null; } })(),
   });
 });
 

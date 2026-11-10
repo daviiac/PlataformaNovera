@@ -1,5 +1,7 @@
 (async () => {
   const { api, requireUser, renderTopbar, esc, formatBytes, formatDate, iconLabel, openViewer, toast } = Novera;
+  // Busca a visão geral junto com o usuário (uma espera a menos ao abrir a página).
+  const overviewP = api('/api/tracks').catch((err) => err);
   const user = await requireUser();
   if (user.role === 'student' && !user.level) return window.location.replace('/nivelamento');
   renderTopbar(user, 'trilha');
@@ -9,7 +11,8 @@
   const NAMES = { A1: 'Iniciante', A2: 'Básico', B2: 'Intermediário superior' };
   const PALETTE = ['#f9d56e', '#7ed6a5', '#7ec8d6', '#8ab6f9', '#b9b4f5', '#d8a7f2', '#f2a7c8', '#f9b48a', '#a3e4a6', '#e88b8b', '#f6c178', '#9ad1f5'];
 
-  const overview = await api('/api/tracks');
+  let overview = await overviewP;
+  if (overview instanceof Error) overview = await api('/api/tracks');
   const unlocked = overview.unlocked;
   const params = new URLSearchParams(location.search);
   let current = (params.get('nivel') || user.level || unlocked[unlocked.length - 1] || 'A1').toUpperCase();
