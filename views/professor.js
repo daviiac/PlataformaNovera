@@ -149,14 +149,16 @@
       return Novera.toast(err.message);
     }
     const first = s.name.split(' ')[0];
-    const text = `Olá, ${first}! Sua senha provisória da Plataforma Novera é: ${r.tempPassword}\n`
-      + `Entre em ${location.origin} com o seu e-mail (${s.email}) e essa senha. Logo depois, o sistema vai pedir para você criar uma senha nova.`;
+    const text = `Olá, ${first}! Sua senha provisória da Plataforma Novera é:\n\n${r.tempPassword}\n\n`
+      + `Entre em ${location.origin} com o seu e-mail (${s.email}) e essa senha, com letras maiúsculas e minúsculas exatamente como estão. `
+      + 'Logo depois, o sistema vai pedir para você criar uma senha nova.';
     const el = document.createElement('div');
     el.className = 'viewer';
     el.innerHTML = `
       <div class="card reset-card" role="dialog" aria-modal="true" aria-labelledby="reset-title">
         <h2 id="reset-title">🔑 Senha provisória de ${esc(first)}</h2>
-        <p class="small muted">Copie e envie para o aluno. <b>Ela aparece só agora</b> — se fechar sem copiar, é só redefinir de novo.</p>
+        <p class="small muted">Copie e envie para o aluno. <b>Ela aparece só agora</b> — se fechar sem copiar, é só redefinir de novo.
+          Atenção: cada vez que você redefine, <b>só a senha mais nova vale</b> (as anteriores param de funcionar).</p>
         <div class="temp-pw"><code>${esc(r.tempPassword)}</code>
           <button type="button" class="btn btn-sm" data-copy="pw">Copiar senha</button></div>
         <p class="small dim">E-mail de acesso: ${esc(s.email || '')}</p>

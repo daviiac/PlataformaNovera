@@ -86,7 +86,12 @@ router.post('/login', loginLimiter, ah(async (req, res) => {
 
   // Aceita e-mail (alunos) ou nome de usuário (administrador).
   const user = await db.one('SELECT * FROM users WHERE email = $1 OR username = $1', [identifier]);
-  const ok = await verifyPassword(password, user?.password_hash);
+  let ok = await verifyPassword(password, user?.password_hash);
+  // Senha provisória (gerada pela professora) nunca tem espaços: aceita mesmo se vier com espaço ou
+  // quebra de linha nas pontas, o que é comum ao copiar do WhatsApp. Senhas normais continuam exatas.
+  if (!ok && user?.must_change_password && password.trim() && password.trim() !== password) {
+    ok = await verifyPassword(password.trim(), user.password_hash);
+  }
   if (!user || !ok) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
   // Só depois de conferir a senha, para não revelar a situação da conta a quem não a conhece.
   if (user.active === false) {

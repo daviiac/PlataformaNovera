@@ -275,3 +275,26 @@ test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', as
   const again = await client()('POST', '/api/auth/register', { json: { name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
   assert.equal(again.status, 201);
 });
+
+test('senha provisória: aceita espaço ou quebra de linha copiados junto; senha normal continua exata', async () => {
+  const s = client();
+  const reg = await s('POST', '/api/auth/register', { json: { name: 'Caio Prado', email: 'caio.temp@exemplo.com', password: STRONG, level: 'A1' } });
+  assert.equal(reg.status, 201);
+  const anon = () => client();
+  // Senha normal: espaço a mais continua sendo senha errada.
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: `${STRONG} ` } })).status, 401);
+
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const r1 = await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`);
+  const r2 = await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`);
+  const temp = r2.data.tempPassword;
+  // Só a senha mais nova vale.
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: r1.data.tempPassword } })).status, 401);
+  for (const pw of [`${temp} `, `${temp}\n`, ` ${temp}`, `\t${temp}\r\n`]) {
+    const r = await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: pw } });
+    assert.equal(r.status, 200, JSON.stringify(pw));
+    assert.equal(r.data.user.mustChangePassword, true);
+  }
+  // Maiúsculas/minúsculas continuam importando.
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: temp.toLowerCase() } })).status, 401);
+});
