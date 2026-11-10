@@ -40,10 +40,10 @@ function client() {
   };
 }
 
-async function student(email, { placed = true } = {}) {
+async function student(email, { placed = true, level = 'TEST' } = {}) {
   const c = client();
-  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno', email, password: 'Lago#Verde2026', level: 'TEST' } })).status, 201);
-  if (placed) await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
+  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno', email, password: 'Lago#Verde2026', level } })).status, 201);
+  if (placed && level === 'TEST') await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
   return c;
 }
 
@@ -104,7 +104,7 @@ test('aluno sem nivelamento não acessa atividades; anônimo recebe 401', async 
 });
 
 test('aluno lista tipos, filtra por nível, abre atividade e salva resultado', async () => {
-  const c = await student('ativo@exemplo.com');
+  const c = await student('ativo@exemplo.com', { level: 'A1' });
   const types = await c('GET', '/api/activities/types');
   assert.equal(types.status, 200);
   const listen = types.data.types.find((t) => t.key === 'listen');
@@ -130,6 +130,11 @@ test('aluno lista tipos, filtra por nível, abre atividade e salva resultado', a
   assert.equal((await c('POST', `/api/activities/${key}/attempts`, { json: { score: 9, total: 6 } })).status, 400);
   assert.equal((await c('GET', '/api/activities/b-nao-existe')).status, 404);
   assert.equal((await c('GET', '/api/activities?type=hack')).status, 400);
+
+  // Aluno do A1 só acessa o A1: atividades de outros níveis aparecem bloqueadas e não abrem.
+  const other = await c('GET', '/api/activities?type=listen&level=A2');
+  assert.ok(other.data.activities.every((a) => a.locked));
+  assert.equal((await c('GET', `/api/activities/${other.data.activities[0].key}`)).status, 403);
 });
 
 test('só o admin cria atividades com vídeo; validação dos dados', async () => {
@@ -137,7 +142,7 @@ test('só o admin cria atividades com vídeo; validação dos dados', async () =
     type: 'quiz', level: 'A2', title: 'Ordering food', youtube: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     data: { questions: [{ time: 65, prompt: 'What does she order?', options: ['Soup', 'Pizza', 'Salad'], answer: 1 }] },
   };
-  const s = await student('nao-admin@exemplo.com');
+  const s = await student('nao-admin@exemplo.com', { level: 'A2' });
   assert.equal((await s('POST', '/api/admin/activities', { json: quiz })).status, 403);
 
   const a = await admin();
@@ -151,7 +156,7 @@ test('só o admin cria atividades com vídeo; validação dos dados', async () =
   assert.equal(one.data.activity.data.questions[0].time, 65);
 
   const song = await a('POST', '/api/admin/activities', { json: {
-    type: 'song', level: 'A1', title: 'Our song', youtube: 'dQw4w9WgXcQ',
+    type: 'song', level: 'A2', title: 'Our song', youtube: 'dQw4w9WgXcQ',
     data: { lines: [{ time: 12, text: 'Every [morning] I wake up' }, { time: null, text: 'And I [walk] to the [river]' }] },
   } });
   assert.equal(song.status, 201);

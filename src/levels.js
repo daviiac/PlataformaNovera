@@ -3,9 +3,10 @@
 /**
  * Controle de níveis.
  *  - Equipe (admin e professor): acessa todos os níveis.
- *  - Aluno: acessa o nível atual e os anteriores (A1 < A2 < B2), inclusive níveis em
- *    que já esteve. Os PRÓXIMOS níveis só abrem quando a professora muda o nível
- *    do aluno no Controle Professor(a).
+ *  - Aluno: acessa SOMENTE o nível em que está e os níveis em que já esteve (o nível
+ *    anterior, quando a professora mudou o nível dele). Nenhum outro nível abre — nem
+ *    os de baixo que ele nunca cursou, nem os próximos — até a professora mudar o
+ *    nível do aluno no Controle Professor(a).
  */
 const db = require('./db');
 
@@ -26,9 +27,12 @@ async function unlockedLevels(user) {
   if (user.role !== 'student') return ORDER.slice();
   if (!user.level) return [];
   const hist = await db.query('SELECT from_level, to_level FROM level_changes WHERE user_id = $1', [user.id]);
-  let max = rank(user.level);
-  for (const h of hist) max = Math.max(max, rank(h.from_level), rank(h.to_level));
-  return ORDER.slice(0, max + 1);
+  const had = new Set([user.level]);
+  for (const h of hist) {
+    if (h.from_level) had.add(h.from_level);
+    if (h.to_level) had.add(h.to_level);
+  }
+  return ORDER.filter((l) => had.has(l));
 }
 
 /** Middleware: bloqueia nível ainda não liberado (o nível vem de req.params.level ou da função). */

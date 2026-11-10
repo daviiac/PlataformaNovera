@@ -60,11 +60,11 @@ async function uploadMaterial(admin, moduleId, name, content, title) {
   });
 }
 
-async function newStudent(name, email, { placed = true } = {}) {
+async function newStudent(name, email, { placed = true, level = 'TEST' } = {}) {
   const c = client();
-  const r = await c('POST', '/api/auth/register', { json: { name, email, password: 'Lago#Verde2026', level: 'TEST' } });
+  const r = await c('POST', '/api/auth/register', { json: { name, email, password: 'Lago#Verde2026', level } });
   assert.equal(r.status, 201);
-  if (placed) {
+  if (placed && level === 'TEST') {
     await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
   }
   return c;
@@ -144,10 +144,10 @@ test('aluno sem nivelamento não acessa trilhas; após o teste recebe o nível',
   assert.equal(track.status, 200);
   assert.equal(track.data.isOwnLevel, true);
 
-  // Nível anterior fica aberto; o próximo só a professora libera.
+  // O aluno só acessa o próprio nível: nem o de baixo (que nunca cursou) nem o próximo.
   const lower = await c('GET', '/api/tracks/A1');
-  assert.equal(lower.status, 200, 'nível anterior liberado');
-  assert.equal(lower.data.isOwnLevel, false);
+  assert.equal(lower.status, 403, 'nível que o aluno não cursou fica bloqueado');
+  assert.equal(lower.data.code, 'LEVEL_LOCKED');
   const next = await c('GET', '/api/tracks/B2');
   assert.equal(next.status, 403, 'próximo nível bloqueado');
   assert.equal(next.data.code, 'LEVEL_LOCKED');
@@ -282,7 +282,7 @@ test('pré-visualização de documentos: docx, pptx, xlsx e txt', async () => {
   assert.equal(docx.preview, 'html');
   assert.equal(doc.preview, 'none');
 
-  const student = await newStudent('Fabi', 'fabi@exemplo.com');
+  const student = await newStudent('Fabi', 'fabi@exemplo.com', { level: 'A1' });
 
   const d = await student('GET', docx.viewUrl);
   assert.equal(d.status, 200);
