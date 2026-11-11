@@ -42,7 +42,7 @@ async function activityIndex(keys) {
 router.get('/overview', ah(async (req, res) => {
   const [students, grouped, placements] = await Promise.all([
     db.query(`
-      SELECT u.id, u.name, u.email, u.level, u.created_at, u.active, u.deactivated_at,
+      SELECT u.id, u.name, u.email, u.username, u.level, u.created_at, u.active, u.deactivated_at,
              lc.from_level AS previous_level, lc.created_at AS level_changed_at
       FROM users u
       LEFT JOIN LATERAL (
@@ -177,9 +177,10 @@ function temporaryPassword(ctx) {
 router.post('/students/:id/reset-password', ah(async (req, res) => {
   const id = Number(req.params.id);
   const student = Number.isInteger(id)
-    ? await db.one("SELECT id, name, email FROM users WHERE id = $1 AND role = 'student'", [id])
+    ? await db.one("SELECT id, name, email, username FROM users WHERE id = $1 AND role = 'student'", [id])
     : null;
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  if (student.username) await clearAccountLimits(student.username);
 
   const temp = temporaryPassword({ name: student.name, email: student.email });
   await db.query('UPDATE users SET password_hash = $1, must_change_password = true WHERE id = $2', [await hashPassword(temp), id]);
@@ -194,15 +195,28 @@ router.post('/students/:id/reset-password', ah(async (req, res) => {
  * Segue as mesmas regras do cadastro. Com requireChange, o aluno cria uma senha nova ao entrar.
  * As sessões abertas do aluno são encerradas e os bloqueios de login liberados.
  */
+// Login do aluno (opcional, além do e-mail): minúsculas, 3–30 caracteres, letras/números/. _ -
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/;
+
 router.post('/students/:id/set-password', ah(async (req, res) => {
   const id = Number(req.params.id);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const requireChange = req.body?.requireChange === true;
+  const rawUser = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
   const student = Number.isInteger(id)
-    ? await db.one("SELECT id, name, email FROM users WHERE id = $1 AND role = 'student'", [id])
+    ? await db.one("SELECT id, name, email, username FROM users WHERE id = $1 AND role = 'student'", [id])
     : null;
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
   if (password !== password.trim()) return res.status(400).json({ error: 'A senha não pode começar nem terminar com espaço.' });
+
+  const username = rawUser || null;
+  if (username) {
+    if (!USERNAME_RE.test(username)) {
+      return res.status(400).json({ error: 'Login inválido: use de 3 a 30 letras minúsculas, números, ponto, hífen ou _ (sem espaço e sem acento).', code: 'BAD_USERNAME' });
+    }
+    const taken = await db.one('SELECT id FROM users WHERE (username = $1 OR email = $1) AND id <> $2', [username, id]);
+    if (taken) return res.status(409).json({ error: `O login "${username}" já está em uso. Escolha outro.`, code: 'USERNAME_TAKEN' });
+  }
 
   const strength = PasswordPolicy.check(password, { name: student.name, email: student.email });
   if (!strength.ok) {
@@ -210,11 +224,13 @@ router.post('/students/:id/set-password', ah(async (req, res) => {
     return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });
   }
 
-  await db.query('UPDATE users SET password_hash = $1, must_change_password = $2 WHERE id = $3',
-    [await hashPassword(password), requireChange, id]);
+  await db.query('UPDATE users SET password_hash = $1, must_change_password = $2, username = $3 WHERE id = $4',
+    [await hashPassword(password), requireChange, username, id]);
   await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
   await clearAccountLimits(student.email);
-  res.json({ ok: true, requireChange, student: { id: student.id, name: student.name, email: student.email } });
+  if (student.username) await clearAccountLimits(student.username);
+  if (username) await clearAccountLimits(username);
+  res.json({ ok: true, requireChange, student: { id: student.id, name: student.name, email: student.email, username } });
 }));
 
 /**

@@ -19,7 +19,8 @@ const identifierOf = (req) => str(req.body?.identifier || req.body?.email).toLow
 // Login: por IP + conta, por IP (muitas contas) e por conta (ataque distribuído de vários IPs).
 const loginLimiter = rateLimit([
   { name: 'login-id', windowMs: 15 * MIN, max: 8, keyFn: (req) => `${req.ip}|${identifierOf(req)}`, subjectFn: identifierOf },
-  { name: 'login-ip', windowMs: 15 * MIN, max: 40, keyFn: (req) => req.ip },
+  // Alto o bastante para uma escola inteira no mesmo wi-fi (todos saem pelo mesmo IP).
+  { name: 'login-ip', windowMs: 15 * MIN, max: 200, keyFn: (req) => req.ip },
   { name: 'login-account', windowMs: 60 * MIN, max: 50, keyFn: identifierOf, subjectFn: identifierOf },
 ]);
 

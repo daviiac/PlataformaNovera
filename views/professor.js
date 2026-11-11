@@ -82,7 +82,7 @@
         <header class="t-student-head">
           <div class="t-who">
             <span class="t-avatar" aria-hidden="true">${esc((s.name || '?').trim().charAt(0).toUpperCase())}</span>
-            <div><strong>${esc(s.name)}</strong> ${levelBadge} ${statusBadge}<br><span class="small dim">${esc(s.email || '')} · cadastro ${formatDate(s.created_at)}</span></div>
+            <div><strong>${esc(s.name)}</strong> ${levelBadge} ${statusBadge}<br><span class="small dim">${s.username ? `<b class="t-login">login: ${esc(s.username)}</b> · ` : ''}${esc(s.email || '')} · cadastro ${formatDate(s.created_at)}</span></div>
           </div>
           <div class="t-total">
             <span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span>
@@ -102,7 +102,7 @@
           </select>
           <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
           <button type="button" class="btn btn-ghost btn-sm" data-reset-pw title="Gera uma senha provisória para o aluno">🔑 Redefinir senha</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-set-pw title="Você escolhe a senha do aluno">✏️ Definir senha</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-set-pw title="Você escolhe o login e a senha do aluno">✏️ Definir login e senha</button>
         </div>
         <div class="t-access">
           <span class="small"><b>Acesso:</b> ${off
@@ -151,7 +151,7 @@
     }
     const first = s.name.split(' ')[0];
     const text = `Olá, ${first}! Sua senha provisória da Plataforma Novera é:\n\n${r.tempPassword}\n\n`
-      + `Entre em ${location.origin} com o seu e-mail (${s.email}) e essa senha, com letras maiúsculas e minúsculas exatamente como estão. `
+      + `Entre em ${location.origin} com o ${s.username ? `login ${s.username}` : `seu e-mail (${s.email})`} e essa senha, com letras maiúsculas e minúsculas exatamente como estão. `
       + 'Logo depois, o sistema vai pedir para você criar uma senha nova.';
     const el = document.createElement('div');
     el.className = 'viewer';
@@ -162,7 +162,7 @@
           Atenção: cada vez que você redefine, <b>só a senha mais nova vale</b> (as anteriores param de funcionar).</p>
         <div class="temp-pw"><code>${esc(r.tempPassword)}</code>
           <button type="button" class="btn btn-sm" data-copy="pw">Copiar senha</button></div>
-        <p class="small dim">E-mail de acesso: ${esc(s.email || '')}</p>
+        <p class="small dim">${s.username ? `Login: <b>${esc(s.username)}</b> · ` : ''}E-mail: ${esc(s.email || '')}</p>
         <button type="button" class="btn btn-ghost btn-block" data-copy="msg">Copiar mensagem pronta para o WhatsApp</button>
         <p class="small dim">Ao entrar, o aluno é obrigado a criar uma senha nova (você não fica sabendo qual).</p>
         <button type="button" class="btn btn-block" data-close>Fechar</button>
@@ -189,12 +189,19 @@
     const id = Number(art.dataset.id);
     const s = students.find((x) => x.id === id);
     const first = s.name.split(' ')[0];
+    const USER_RE = /^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/;
+    const suggested = s.username || first.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
     const el = document.createElement('div');
     el.className = 'viewer';
     el.innerHTML = `
       <div class="card reset-card setpw-card" role="dialog" aria-modal="true" aria-labelledby="setpw-title">
-        <h2 id="setpw-title">✏️ Definir senha de ${esc(first)}</h2>
-        <p class="small muted">Digite a senha que ${esc(first)} vai usar para entrar com o e-mail <b>${esc(s.email || '')}</b>.</p>
+        <h2 id="setpw-title">✏️ Login e senha de ${esc(first)}</h2>
+        <p class="small muted">${esc(first)} vai entrar com este <b>login</b> e esta <b>senha</b>. O e-mail (${esc(s.email || '')}) também continua funcionando.</p>
+        <div class="field">
+          <label for="setpw-user" class="small">Login (só letras minúsculas, sem espaço)</label>
+          <input id="setpw-user" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" value="${esc(suggested)}">
+          <span class="hint" id="setpw-user-hint"></span>
+        </div>
         <div class="field">
           <label for="setpw-input" class="small">Senha nova</label>
           <div class="setpw-row">
@@ -212,14 +219,26 @@
       </div>`;
     const close = () => { el.remove(); document.body.classList.remove('viewer-open'); };
     const input = el.querySelector('#setpw-input');
+    const user = el.querySelector('#setpw-user');
     const save = el.querySelector('[data-save]');
+    user.addEventListener('input', () => {
+      const v = user.value.toLowerCase().replace(/\s/g, '');
+      if (v !== user.value) user.value = v;
+      evaluate();
+    });
     const evaluate = () => {
+      const u = user.value.trim();
+      const userOk = !u || USER_RE.test(u);
+      el.querySelector('#setpw-user-hint').textContent = !u
+        ? `Sem login: ${first} entra só com o e-mail.`
+        : userOk ? `${first} vai entrar com: ${u}` : 'Use de 3 a 30 letras minúsculas, números, ponto, hífen ou _ (sem acento).';
+      el.querySelector('#setpw-user-hint').className = `hint ${u && !userOk ? 'hint-bad' : 'hint-ok'}`;
       const r = PasswordPolicy.check(input.value, { name: s.name, email: s.email });
       const spaces = input.value !== input.value.trim();
       el.querySelector('#setpw-checks').innerHTML = r.checks
         .map((c) => `<li class="${c.ok ? 'ok' : ''}">${c.ok ? '✓' : '•'} ${esc(c.id === 'personal' ? `Sem o nome ou e-mail de ${first}` : c.label)}</li>`).join('')
         + (spaces ? '<li>• Sem espaço no começo ou no fim</li>' : '');
-      save.disabled = !r.ok || spaces;
+      save.disabled = !r.ok || spaces || !userOk;
       return !save.disabled;
     };
     input.addEventListener('input', evaluate);
@@ -235,11 +254,16 @@
       el.querySelector('#setpw-error').textContent = '';
       const requireChange = el.querySelector('#setpw-change').checked;
       try {
-        await api(`/api/teacher/students/${id}/set-password`, { method: 'POST', body: { password: input.value, requireChange } });
+        const r = await api(`/api/teacher/students/${id}/set-password`, {
+          method: 'POST', body: { password: input.value, requireChange, username: user.value.trim() },
+        });
+        s.username = r.student.username;
         close();
+        render();
+        const how = s.username ? `login "${s.username}"` : 'o e-mail';
         Novera.toast(requireChange
-          ? `Senha de ${first} definida. No próximo login, ${first} cria uma senha própria.`
-          : `Senha de ${first} definida ✓ ${first} já pode entrar com ela.`);
+          ? `Pronto! ${first} entra com ${how} e essa senha, e depois cria uma senha própria.`
+          : `Pronto! ${first} já pode entrar com ${how} e essa senha ✓`);
       } catch (err) {
         el.querySelector('#setpw-error').textContent = err.message;
         save.textContent = 'Salvar senha';
@@ -249,7 +273,8 @@
     document.body.classList.add('viewer-open');
     document.body.appendChild(el);
     evaluate();
-    input.focus();
+    user.focus();
+    user.select();
   }
 
   // ------------------------------------------------------------ inativar / reativar acesso
@@ -329,7 +354,7 @@
     const cat = $('t-cat').value;
     const sort = $('t-sort').value;
     const status = $('t-status').value;
-    let list = students.filter((s) => (!q || s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
+    let list = students.filter((s) => (!q || s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q) || (s.username || '').includes(q))
       && (!level || (level === '-' ? !s.level : s.level === level))
       && (!status || (status === 'inactive') === (s.active === false)));
     const acc = (s) => {

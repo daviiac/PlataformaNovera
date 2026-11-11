@@ -360,3 +360,36 @@ test('professor(a) define a senha escolhida para o aluno', async () => {
   const st = await login(email, 'Praia#2026k');
   assert.equal((await st('POST', `/api/teacher/students/${sid}/set-password`, { json: { password: 'Morro#2026q' } })).status, 403);
 });
+
+test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail continua valendo)', async () => {
+  await db.query('DELETE FROM auth_attempts'); // todos os testes entram pelo mesmo IP
+  const email = 'nina.login@exemplo.com';
+  const reg = await client()('POST', '/api/auth/register', { json: { name: 'Nina Rocha', email, password: STRONG, level: 'A1' } });
+  const sid = reg.data.user.id;
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const setPw = (json) => t('POST', `/api/teacher/students/${sid}/set-password`, { json });
+  const tryLogin = (identifier, password) => client()('POST', '/api/auth/login', { json: { identifier, password } });
+
+  assert.equal((await setPw({ password: 'Morro#2026q', username: 'ni na' })).data.code, 'BAD_USERNAME');
+  assert.equal((await setPw({ password: 'Morro#2026q', username: 'joão' })).data.code, 'BAD_USERNAME');
+  assert.equal((await setPw({ password: 'Morro#2026q', username: ADMIN.user })).data.code, 'USERNAME_TAKEN');
+  assert.equal((await setPw({ password: 'Morro#2026q', username: 'duda@exemplo.com' })).data.code, 'BAD_USERNAME');
+
+  const ok = await setPw({ password: 'Morro#2026q', username: 'NinaR' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.student.username, 'ninar', 'login salvo em minúsculas');
+  assert.equal((await tryLogin('ninar', 'Morro#2026q')).status, 200, 'entra com o login');
+  assert.equal((await tryLogin('NINAR', 'Morro#2026q')).status, 200, 'maiúsculas no login não importam');
+  assert.equal((await tryLogin(email, 'Morro#2026q')).status, 200, 'e-mail continua valendo');
+  assert.equal((await tryLogin('ninar', STRONG)).status, 401, 'senha antiga não vale');
+  const ov = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid);
+  assert.equal(ov.username, 'ninar');
+
+  // Outro aluno não pode usar o mesmo login.
+  const other = await client()('POST', '/api/auth/register', { json: { name: 'Otto Lima', email: 'otto.login@exemplo.com', password: STRONG, level: 'A1' } });
+  const dup = await t('POST', `/api/teacher/students/${other.data.user.id}/set-password`, { json: { password: 'Morro#2026q', username: 'ninar' } });
+  assert.equal(dup.data.code, 'USERNAME_TAKEN');
+  // Ninguém se cadastra com e-mail igual a um login existente (não há como, login não tem @) e o login some se ficar vazio.
+  assert.equal((await setPw({ password: 'Praia#2026k', username: '' })).data.student.username, null);
+  assert.equal((await tryLogin('ninar', 'Praia#2026k')).status, 401);
+});
