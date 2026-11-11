@@ -46,7 +46,29 @@
   }
 
   /** Progresso parcial (para a professora ver o % e o aluno ser lembrado se sair antes do fim). */
-  const progress = (answered, correct, total) => Act.reportProgress(activity.key, answered, correct, total);
+  const progress = (answered, correct, total, state) => Act.reportProgress(activity.key, answered, correct, total, state);
+
+  // ---------- Continuar de onde parou ----------
+  // O servidor devolve o progresso guardado; cada tipo de atividade pega o seu estado uma vez
+  // (depois de montar a tela) e reaplica as respostas. "Fazer de novo" começa do zero.
+  let resume = activity.progress?.state ? activity.progress : null;
+  function takeResume(total) {
+    const r = resume;
+    resume = null;
+    if (!r || r.total !== total || !r.state || typeof r.state !== 'object') return null;
+    const note = document.createElement('div');
+    note.className = 'notice-info resume-note';
+    note.innerHTML = `↩️ <span>Continuando de onde você parou: <b>${r.answered} de ${r.total}</b> já respondidas.</span>
+      <button type="button" class="link-btn" data-fresh>Recomeçar do zero</button>`;
+    stage.prepend(note);
+    note.querySelector('[data-fresh]').addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      await progress(0, 0, r.total);
+      location.reload();
+    });
+    return r.state;
+  }
+  const clampInt = (n, min, max) => (Number.isInteger(n) ? Math.min(max, Math.max(min, n)) : min);
 
   const ttsWarning = () => (Act.ttsSupported() ? '' : '<p class="notice">Seu navegador não oferece voz em inglês. Use o Chrome, Edge ou Safari atualizados para ouvir os áudios.</p>');
 
@@ -131,14 +153,28 @@
     });
 
     const finishBtn = stage.querySelector('[data-finish]');
-    stage.querySelector('.q-list').addEventListener('change', (e) => {
-      const fs = e.target.closest('[data-q]');
-      answers[Number(fs.dataset.q)] = Number(e.target.value);
+    const refresh = () => {
       const n = answers.filter((a) => a !== null).length;
       finishBtn.textContent = `Finalizar (${n}/${qs.length})`;
       finishBtn.disabled = n < qs.length;
-      progress(n, qs.filter((q, i) => answers[i] === q.answer).length, qs.length);
+      return n;
+    };
+    stage.querySelector('.q-list').addEventListener('change', (e) => {
+      const fs = e.target.closest('[data-q]');
+      answers[Number(fs.dataset.q)] = Number(e.target.value);
+      const n = refresh();
+      progress(n, qs.filter((q, i) => answers[i] === q.answer).length, qs.length, { answers });
     });
+    const saved = takeResume(qs.length);
+    if (Array.isArray(saved?.answers)) {
+      saved.answers.forEach((a, i) => {
+        if (!qs[i] || !Number.isInteger(a) || a < 0 || a >= qs[i].options.length) return;
+        answers[i] = a;
+        const inp = stage.querySelector(`input[name="q${i}"][value="${a}"]`);
+        if (inp) inp.checked = true;
+      });
+      refresh();
+    }
     finishBtn.addEventListener('click', () => {
       pause();
       let score = 0;
@@ -206,7 +242,7 @@
       Act.stopSpeaking();
       const ok = Act.same(input.value, sentences[i]);
       if (ok) score += 1;
-      progress(i + 1, score, sentences.length);
+      progress(i + 1, score, sentences.length, { i: i + 1, score });
       fb.hidden = false;
       fb.className = `feedback ${ok ? 'ok' : 'bad'}`;
       fb.innerHTML = ok
@@ -228,6 +264,12 @@
       stage.querySelector('.dict-card').hidden = true;
       finish(score, sentences.length);
     });
+    const saved = takeResume(sentences.length);
+    if (saved) {
+      i = clampInt(saved.i, 0, sentences.length);
+      score = clampInt(saved.score, 0, i);
+      if (i >= sentences.length) { stage.querySelector('.dict-card').hidden = true; finish(score, sentences.length); return; }
+    }
     show();
   }
 
@@ -335,7 +377,7 @@
         });
       }
       if (ok) score += 1;
-      progress(i + 1, score, items.length);
+      progress(i + 1, score, items.length, { i: i + 1, score });
       const fb = q('[data-feedback]');
       fb.hidden = false;
       fb.className = `feedback ${ok ? 'ok' : 'bad'}`;
@@ -360,6 +402,12 @@
       stage.querySelector('.gq-card').hidden = true;
       finish(score, items.length);
     });
+    const saved = takeResume(items.length);
+    if (saved) {
+      i = clampInt(saved.i, 0, items.length);
+      score = clampInt(saved.score, 0, i);
+      if (i >= items.length) { stage.querySelector('.gq-card').hidden = true; finish(score, items.length); return; }
+    }
     show();
   }
 
@@ -428,7 +476,7 @@
       const s = sentences[i];
       const ok = Act.same(placed.map((w) => w.text).join(' '), s.en);
       if (ok) score += 1;
-      progress(i + 1, score, sentences.length);
+      progress(i + 1, score, sentences.length, { i: i + 1, score });
       checked = true;
       draw();
       q('[data-answer]').classList.toggle('is-ok', ok);
@@ -450,6 +498,12 @@
       stage.querySelector('.wo-card').hidden = true;
       finish(score, sentences.length);
     });
+    const saved = takeResume(sentences.length);
+    if (saved) {
+      i = clampInt(saved.i, 0, sentences.length);
+      score = clampInt(saved.score, 0, i);
+      if (i >= sentences.length) { stage.querySelector('.wo-card').hidden = true; finish(score, sentences.length); return; }
+    }
     show();
   }
 
@@ -485,17 +539,27 @@
     const selected = new Set();
     let done = false;
 
+    const mark = (b, k, on) => {
+      if (on) selected.add(k); else selected.delete(k);
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-pressed', String(on));
+      q('[data-sel]').textContent = `${selected.size} ${selected.size === 1 ? 'palavra marcada' : 'palavras marcadas'}`;
+    };
     q('[data-text]').addEventListener('click', (e) => {
       const b = e.target.closest('.tc-word');
       if (!b || done) return;
       const k = Number(b.dataset.k);
-      if (selected.has(k)) selected.delete(k); else selected.add(k);
-      b.classList.toggle('selected', selected.has(k));
-      b.setAttribute('aria-pressed', String(selected.has(k)));
-      q('[data-sel]').textContent = `${selected.size} ${selected.size === 1 ? 'palavra marcada' : 'palavras marcadas'}`;
+      mark(b, k, !selected.has(k));
       const hits = [...selected].filter((s) => tokens[s].error).length;
-      progress(Math.min(selected.size, total), Math.min(hits, total), total);
+      progress(Math.min(selected.size, total), Math.min(hits, total), total, { selected: [...selected] });
     });
+    const saved = takeResume(total);
+    if (Array.isArray(saved?.selected)) {
+      saved.selected.forEach((k) => {
+        const b = Number.isInteger(k) && stage.querySelector(`.tc-word[data-k="${k}"]`);
+        if (b) mark(b, k, true);
+      });
+    }
 
     q('[data-done]').addEventListener('click', () => {
       done = true;
@@ -599,7 +663,7 @@
       q('[data-continue]').focus();
       const n = answered.filter((a) => a !== null).length;
       q('[data-progress]').textContent = `${n}/${qs.length} perguntas respondidas`;
-      progress(n, score, qs.length);
+      progress(n, score, qs.length, { answered });
     });
     q('[data-continue]').addEventListener('click', () => {
       overlay.hidden = true;
@@ -632,6 +696,22 @@
       finished = true;
       clearInterval(timer);
       finish(score, qs.length, { retry: () => location.reload() });
+    }
+
+    // Continuar: perguntas já respondidas não aparecem de novo; o vídeo vai para a última respondida.
+    const saved = takeResume(qs.length);
+    if (Array.isArray(saved?.answered)) {
+      let lastTime = 0;
+      saved.answered.forEach((a, k) => {
+        if (!qs[k] || !Number.isInteger(a) || a < 0 || a >= qs[k].options.length) return;
+        answered[k] = a;
+        if (a === qs[k].answer) score += 1;
+        lastTime = Math.max(lastTime, qs[k].time || 0);
+      });
+      const n = answered.filter((a) => a !== null).length;
+      q('[data-progress]').textContent = `${n}/${qs.length} perguntas respondidas`;
+      if (n === qs.length) finishVideo();
+      else if (lastTime > 0) { try { player.seekTo(lastTime, true); player.pauseVideo(); } catch { /* player ainda carregando */ } }
     }
   }
 
@@ -701,20 +781,29 @@
       stage.querySelector(`.gap[data-gap="${current}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
-    q('[data-options]').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-word]');
-      if (!b) return;
+    const picks = [];
+    function pick(word) {
       const g = gaps[current];
-      const ok = b.dataset.word.toLowerCase() === g.word.toLowerCase();
+      const ok = word.toLowerCase() === g.word.toLowerCase();
       if (ok) score += 1;
+      picks.push(word);
       const el = stage.querySelector(`.gap[data-gap="${current}"]`);
       el.textContent = g.word;
       el.classList.add(ok ? 'gap-ok' : 'gap-bad');
-      if (!ok) el.title = `Você escolheu: ${b.dataset.word}`;
+      if (!ok) el.title = `Você escolheu: ${word}`;
       current += 1;
-      progress(current, score, gaps.length);
+    }
+    q('[data-options]').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-word]');
+      if (!b) return;
+      pick(b.dataset.word);
+      progress(current, score, gaps.length, { picks });
       showGap();
     });
+    const saved = takeResume(gaps.length);
+    if (Array.isArray(saved?.picks)) {
+      saved.picks.slice(0, gaps.length).forEach((w) => { if (typeof w === 'string' && w.length <= 80) pick(w); });
+    }
 
     q('[data-lyrics]').addEventListener('click', (e) => {
       const li = e.target.closest('[data-time]');
@@ -837,11 +926,24 @@
     q('[data-next]').addEventListener('click', () => go(page + 1));
     q('[data-print]').addEventListener('click', () => window.print());
     let corrected = false;
+    // Resposta de cada item (rádio escolhido ou opção da lista) — para continuar de onde parou.
+    const valueOf = (el) => el.querySelector('input:checked')?.value ?? el.querySelector('select')?.value ?? '';
     stage.addEventListener('change', () => {
       if (corrected) return;
-      const filled = gradable.filter((g) => g.el.querySelector('input:checked') || [...g.el.querySelectorAll('select')].some((s) => s.value));
-      progress(filled.length, filled.filter((g) => g.check(g.el)).length, gradable.length);
+      const filled = gradable.filter((g) => valueOf(g.el) !== '');
+      progress(filled.length, filled.filter((g) => g.check(g.el)).length, gradable.length, { values: gradable.map((g) => valueOf(g.el)) });
     });
+    const saved = takeResume(gradable.length);
+    if (Array.isArray(saved?.values)) {
+      saved.values.slice(0, gradable.length).forEach((v, n) => {
+        if (typeof v !== 'string' || !v) return;
+        const el = gradable[n].el;
+        const radio = [...el.querySelectorAll('input[type=radio]')].find((r) => r.value === v);
+        if (radio) radio.checked = true;
+        const sel = el.querySelector('select');
+        if (sel && [...sel.options].some((o) => o.value === v)) sel.value = v;
+      });
+    }
     stage.addEventListener('click', (e) => {
       const c = e.target.closest('[data-say]');
       if (c) { Act.stopSpeaking(); Act.speak(c.dataset.say).catch((err) => Novera.toast(err.message)); }

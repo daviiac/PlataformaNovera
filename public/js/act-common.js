@@ -155,13 +155,14 @@ const Act = (() => {
   // e o aluno é lembrado da atividade pendente quando voltar.
   let lastProgress = '';
   let progressInFlight = Promise.resolve();
-  function reportProgress(key, answered, correct, total) {
-    const sig = `${key}|${answered}|${correct}|${total}`;
-    if (sig === lastProgress || !total) return;
+  function reportProgress(key, answered, correct, total, state = null) {
+    const sig = `${key}|${answered}|${correct}|${total}|${JSON.stringify(state)}`;
+    if (sig === lastProgress || !total) return progressInFlight;
     lastProgress = sig;
     progressInFlight = progressInFlight
-      .then(() => Novera.api(`/api/activities/${encodeURIComponent(key)}/progress`, { method: 'PUT', body: { answered, correct, total } }))
+      .then(() => Novera.api(`/api/activities/${encodeURIComponent(key)}/progress`, { method: 'PUT', body: { answered, correct, total, state } }))
       .catch(() => { lastProgress = ''; });
+    return progressInFlight;
   }
 
   // ---------------------------------------------------------------- resultado

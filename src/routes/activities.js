@@ -135,8 +135,14 @@ router.get('/:key', ah(async (req, res) => {
   const a = await findActivity(req.params.key);
   if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
   if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
-  const best = (await bestScores(req.user.id)).get(a.key) || null;
-  res.json({ activity: { ...a, slug: undefined, best }, type: TYPES.find((t) => t.key === a.type) });
+  const [scores, prog] = await Promise.all([
+    bestScores(req.user.id),
+    db.one('SELECT answered, correct, total, state FROM activity_progress WHERE user_id = $1 AND activity_key = $2', [req.user.id, a.key]),
+  ]);
+  const best = scores.get(a.key) || null;
+  // Progresso guardado: o aluno continua de onde parou.
+  const progress = prog ? { answered: prog.answered, correct: prog.correct, total: prog.total, state: prog.state || null } : null;
+  res.json({ activity: { ...a, slug: undefined, best, progress }, type: TYPES.find((t) => t.key === a.type) });
 }));
 
 /** Registra o resultado de uma tentativa (para o aluno acompanhar o progresso). */
@@ -169,17 +175,22 @@ router.put('/:key/progress', ah(async (req, res) => {
   if (!int(total, 500) || total < 1 || !int(answered, total) || !int(correct, answered)) {
     return res.status(400).json({ error: 'Progresso inválido.' });
   }
+  // Estado das respostas (para continuar de onde parou): objeto pequeno.
+  const raw = req.body?.state;
+  const state = raw && typeof raw === 'object' && !Array.isArray(raw) ? JSON.stringify(raw) : null;
+  if (state && state.length > 20000) return res.status(400).json({ error: 'Progresso grande demais.' });
   if (answered === 0) {
     await db.query('DELETE FROM activity_progress WHERE user_id = $1 AND activity_key = $2', [req.user.id, a.key]);
     return res.json({ ok: true });
   }
   // Pode chegar a 100% respondido sem ter clicado em Finalizar/Corrigir: continua pendente.
   await db.query(`
-    INSERT INTO activity_progress (user_id, activity_key, answered, correct, total, updated_at)
-    VALUES ($1, $2, $3, $4, $5, now())
+    INSERT INTO activity_progress (user_id, activity_key, answered, correct, total, state, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, now())
     ON CONFLICT (user_id, activity_key)
-    DO UPDATE SET answered = EXCLUDED.answered, correct = EXCLUDED.correct, total = EXCLUDED.total, updated_at = now()
-  `, [req.user.id, a.key, answered, correct, total]);
+    DO UPDATE SET answered = EXCLUDED.answered, correct = EXCLUDED.correct, total = EXCLUDED.total,
+                  state = EXCLUDED.state, updated_at = now()
+  `, [req.user.id, a.key, answered, correct, total, state]);
   res.json({ ok: true });
 }));
 

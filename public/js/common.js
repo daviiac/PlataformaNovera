@@ -67,13 +67,13 @@ const Novera = (() => {
     box.setAttribute('aria-labelledby', 'pending-title');
     box.innerHTML = `
       <h2 id="pending-title">⏳ ${pending.length === 1 ? 'Você tem 1 atividade pendente' : `Você tem ${pending.length} atividades pendentes`}</h2>
-      <p class="small muted">Você começou e não terminou. Termine para sua professora ver o seu resultado.</p>
+      <p class="small muted">Você começou e não terminou. Continue de onde parou para sua professora ver o seu resultado.</p>
       <ul>${pending.map((p) => `
         <li><a href="/atividade?id=${encodeURIComponent(p.key)}">
           <span>${esc(p.icon || '•')} <b>${esc(p.title)}</b> <span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span>
             <br><span class="small dim">${esc(p.typeLabel || '')} · ${p.percent}% feito (${p.answered} de ${p.total})</span></span>
           <span class="t-pend-bar" aria-hidden="true"><span data-w="${p.percent}"></span></span>
-          <span class="pb-go">Terminar →</span>
+          <span class="pb-go">Continuar →</span>
         </a></li>`).join('')}
       </ul>`;
     box.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });

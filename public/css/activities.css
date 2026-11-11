@@ -426,3 +426,5 @@
   .pending-banner li a { grid-template-columns: 1fr auto; }
   .pending-banner li a .t-pend-bar { grid-column: 1 / -1; grid-row: 2; }
 }
+.resume-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; margin-bottom: 1rem; }
+.resume-note .link-btn { margin-left: auto; }

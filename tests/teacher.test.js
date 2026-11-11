@@ -406,7 +406,11 @@ test('atividade não terminada: professora vê o % e o aluno vê como pendente; 
   assert.equal((await put({ answered: 2, correct: 3, total: 4 })).status, 400, 'acertou mais que respondeu');
   assert.equal((await st('PUT', '/api/activities/b-nao-existe/progress', { json: { answered: 1, correct: 1, total: 4 } })).status, 404);
   assert.equal((await put({ answered: 1, correct: 1, total: 4 })).status, 200);
-  assert.equal((await put({ answered: 2, correct: 1, total: 4 })).status, 200, 'atualiza o mesmo registro');
+  assert.equal((await put({ answered: 2, correct: 1, total: 4, state: { i: 2, score: 1 } })).status, 200, 'atualiza o mesmo registro');
+  assert.equal((await put({ answered: 2, correct: 1, total: 4, state: { big: 'x'.repeat(21000) } })).status, 400, 'estado grande demais');
+  // Ao abrir de novo, a atividade vem com o progresso para continuar de onde parou.
+  const open = (await st('GET', `/api/activities/${key}`)).data.activity;
+  assert.deepEqual(open.progress, { answered: 2, correct: 1, total: 4, state: { i: 2, score: 1 } });
 
   const mine = (await st('GET', '/api/activities/pending')).data.pending;
   assert.equal(mine.length, 1);
@@ -424,6 +428,7 @@ test('atividade não terminada: professora vê o % e o aluno vê como pendente; 
   // Concluiu: sai das pendentes.
   assert.equal((await st('POST', `/api/activities/${key}/attempts`, { json: { score: 3, total: 4 } })).status, 201);
   assert.equal((await st('GET', '/api/activities/pending')).data.pending.length, 0);
+  assert.equal((await st('GET', `/api/activities/${key}`)).data.activity.progress, null, 'concluída: começa do zero');
   assert.equal((await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid).pending.length, 0);
   // Sem login não há progresso.
   assert.equal((await client()('PUT', `/api/activities/${key}/progress`, { json: { answered: 1, correct: 1, total: 4 } })).status, 401);
