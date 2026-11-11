@@ -111,6 +111,25 @@ router.get('/', ah(async (req, res) => {
 
 const LOCKED = { error: 'Este nível será liberado pela sua professora.', code: 'LEVEL_LOCKED' };
 
+/** Atividades que o aluno começou e não terminou (para lembrar quando ele voltar). */
+router.get('/pending', ah(async (req, res) => {
+  const [rows, unlocked] = await Promise.all([
+    db.query('SELECT activity_key, answered, correct, total, updated_at FROM activity_progress WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 30', [req.user.id]),
+    unlockedLevels(req.user),
+  ]);
+  const pending = [];
+  for (const r of rows) {
+    const a = await findActivity(r.activity_key);
+    if (!a || !unlocked.includes(a.level)) continue;
+    const t = TYPES.find((x) => x.key === a.type);
+    pending.push({
+      key: a.key, title: a.title, level: a.level, type: a.type, typeLabel: t?.label, icon: t?.icon,
+      answered: r.answered, total: r.total, percent: Math.round((r.answered / r.total) * 100), updatedAt: r.updated_at,
+    });
+  }
+  res.json({ pending });
+}));
+
 /** Atividade completa para jogar. */
 router.get('/:key', ah(async (req, res) => {
   const a = await findActivity(req.params.key);
@@ -132,8 +151,36 @@ router.post('/:key/attempts', ah(async (req, res) => {
   }
   await db.query('INSERT INTO activity_attempts (user_id, activity_key, score, total) VALUES ($1, $2, $3, $4)',
     [req.user.id, a.key, score, total]);
+  // Concluiu: deixa de estar pendente.
+  await db.query('DELETE FROM activity_progress WHERE user_id = $1 AND activity_key = $2', [req.user.id, a.key]);
   const best = (await bestScores(req.user.id)).get(a.key) || null;
   res.status(201).json({ ok: true, best });
+}));
+
+/** Progresso parcial (atividade começada): enviado a cada resposta, enquanto não termina. */
+router.put('/:key/progress', ah(async (req, res) => {
+  const a = await findActivity(req.params.key);
+  if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
+  if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
+  const total = Number(req.body?.total);
+  const answered = Number(req.body?.answered);
+  const correct = Number(req.body?.correct);
+  const int = (n, max) => Number.isInteger(n) && n >= 0 && n <= max;
+  if (!int(total, 500) || total < 1 || !int(answered, total) || !int(correct, answered)) {
+    return res.status(400).json({ error: 'Progresso inválido.' });
+  }
+  if (answered === 0) {
+    await db.query('DELETE FROM activity_progress WHERE user_id = $1 AND activity_key = $2', [req.user.id, a.key]);
+    return res.json({ ok: true });
+  }
+  // Pode chegar a 100% respondido sem ter clicado em Finalizar/Corrigir: continua pendente.
+  await db.query(`
+    INSERT INTO activity_progress (user_id, activity_key, answered, correct, total, updated_at)
+    VALUES ($1, $2, $3, $4, $5, now())
+    ON CONFLICT (user_id, activity_key)
+    DO UPDATE SET answered = EXCLUDED.answered, correct = EXCLUDED.correct, total = EXCLUDED.total, updated_at = now()
+  `, [req.user.id, a.key, answered, correct, total]);
+  res.json({ ok: true });
 }));
 
 module.exports = router;

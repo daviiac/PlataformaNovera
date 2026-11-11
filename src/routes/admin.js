@@ -178,6 +178,7 @@ router.delete('/activities/:id', ah(async (req, res) => {
   const row = Number.isInteger(id) ? await db.one('DELETE FROM activities WHERE id = $1 RETURNING id', [id]) : null;
   if (!row) return res.status(404).json({ error: 'Atividade não encontrada.' });
   await db.query('DELETE FROM activity_attempts WHERE activity_key = $1', [`a-${id}`]);
+  await db.query('DELETE FROM activity_progress WHERE activity_key = $1', [`a-${id}`]);
   res.json({ ok: true });
 }));
 

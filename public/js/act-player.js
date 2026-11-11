@@ -45,6 +45,9 @@
     if (best) $('act-tags').innerHTML = `<span class="level-badge level-${esc(activity.level)}">${esc(activity.level)}</span> <span class="tag">Melhor: ${best.score}/${best.total}</span>`;
   }
 
+  /** Progresso parcial (para a professora ver o % e o aluno ser lembrado se sair antes do fim). */
+  const progress = (answered, correct, total) => Act.reportProgress(activity.key, answered, correct, total);
+
   const ttsWarning = () => (Act.ttsSupported() ? '' : '<p class="notice">Seu navegador não oferece voz em inglês. Use o Chrome, Edge ou Safari atualizados para ouvir os áudios.</p>');
 
   // ====================================================================== LISTEN
@@ -134,6 +137,7 @@
       const n = answers.filter((a) => a !== null).length;
       finishBtn.textContent = `Finalizar (${n}/${qs.length})`;
       finishBtn.disabled = n < qs.length;
+      progress(n, qs.filter((q, i) => answers[i] === q.answer).length, qs.length);
     });
     finishBtn.addEventListener('click', () => {
       pause();
@@ -202,6 +206,7 @@
       Act.stopSpeaking();
       const ok = Act.same(input.value, sentences[i]);
       if (ok) score += 1;
+      progress(i + 1, score, sentences.length);
       fb.hidden = false;
       fb.className = `feedback ${ok ? 'ok' : 'bad'}`;
       fb.innerHTML = ok
@@ -330,6 +335,7 @@
         });
       }
       if (ok) score += 1;
+      progress(i + 1, score, items.length);
       const fb = q('[data-feedback]');
       fb.hidden = false;
       fb.className = `feedback ${ok ? 'ok' : 'bad'}`;
@@ -422,6 +428,7 @@
       const s = sentences[i];
       const ok = Act.same(placed.map((w) => w.text).join(' '), s.en);
       if (ok) score += 1;
+      progress(i + 1, score, sentences.length);
       checked = true;
       draw();
       q('[data-answer]').classList.toggle('is-ok', ok);
@@ -486,6 +493,8 @@
       b.classList.toggle('selected', selected.has(k));
       b.setAttribute('aria-pressed', String(selected.has(k)));
       q('[data-sel]').textContent = `${selected.size} ${selected.size === 1 ? 'palavra marcada' : 'palavras marcadas'}`;
+      const hits = [...selected].filter((s) => tokens[s].error).length;
+      progress(Math.min(selected.size, total), Math.min(hits, total), total);
     });
 
     q('[data-done]').addEventListener('click', () => {
@@ -590,6 +599,7 @@
       q('[data-continue]').focus();
       const n = answered.filter((a) => a !== null).length;
       q('[data-progress]').textContent = `${n}/${qs.length} perguntas respondidas`;
+      progress(n, score, qs.length);
     });
     q('[data-continue]').addEventListener('click', () => {
       overlay.hidden = true;
@@ -702,6 +712,7 @@
       el.classList.add(ok ? 'gap-ok' : 'gap-bad');
       if (!ok) el.title = `Você escolheu: ${b.dataset.word}`;
       current += 1;
+      progress(current, score, gaps.length);
       showGap();
     });
 
@@ -825,11 +836,18 @@
     q('[data-prev]').addEventListener('click', () => go(page - 1));
     q('[data-next]').addEventListener('click', () => go(page + 1));
     q('[data-print]').addEventListener('click', () => window.print());
+    let corrected = false;
+    stage.addEventListener('change', () => {
+      if (corrected) return;
+      const filled = gradable.filter((g) => g.el.querySelector('input:checked') || [...g.el.querySelectorAll('select')].some((s) => s.value));
+      progress(filled.length, filled.filter((g) => g.check(g.el)).length, gradable.length);
+    });
     stage.addEventListener('click', (e) => {
       const c = e.target.closest('[data-say]');
       if (c) { Act.stopSpeaking(); Act.speak(c.dataset.say).catch((err) => Novera.toast(err.message)); }
     });
     q('[data-check]').addEventListener('click', () => {
+      corrected = true;
       let score = 0;
       const wrongPages = new Set();
       gradable.forEach((g) => {

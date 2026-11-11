@@ -399,3 +399,30 @@
   .ws-page { display: block !important; box-shadow: none; border-width: 2px; break-after: page; margin-bottom: 0; }
   .ws-page[hidden] { display: block !important; }
 }
+
+/* ---------- Atividades pendentes (começadas e não terminadas) ---------- */
+.t-warn { color: var(--warn); }
+.t-pending { margin-top: 0.8rem; padding: 0.8rem 0.95rem; border-radius: 12px; border: 1px solid rgba(242, 182, 96, 0.35); background: rgba(242, 182, 96, 0.07); }
+.t-pending p { margin: 0 0 0.5rem; }
+.t-pending ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.t-pending li { display: grid; grid-template-columns: minmax(0, 1.4fr) 120px minmax(0, 1.6fr); gap: 0.4rem 0.8rem; align-items: center; font-size: 0.9rem; }
+.t-pend-name { overflow-wrap: anywhere; }
+.t-pend-bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.t-pend-bar span { display: block; height: 100%; width: 0; background: var(--warn); border-radius: inherit; }
+.t-pend-nums { color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 720px) {
+  .t-pending li { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+
+/* Aviso ao aluno: atividades que ele começou e não terminou */
+.pending-banner { margin-bottom: 1.2rem; padding: 1rem 1.1rem; border-radius: var(--radius); border: 1px solid rgba(242, 182, 96, 0.4); background: linear-gradient(180deg, rgba(242, 182, 96, 0.1), rgba(242, 182, 96, 0.04)); }
+.pending-banner h2 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.pending-banner > p { margin: 0 0 0.7rem; }
+.pending-banner ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.pending-banner li a { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 0.8rem; align-items: center; padding: 0.6rem 0.8rem; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.pending-banner li a:hover, .pending-banner li a:focus-visible { border-color: var(--warn); }
+.pending-banner .pb-go { color: var(--warn); font-weight: 600; white-space: nowrap; }
+@media (max-width: 600px) {
+  .pending-banner li a { grid-template-columns: 1fr auto; }
+  .pending-banner li a .t-pend-bar { grid-column: 1 / -1; grid-row: 2; }
+}

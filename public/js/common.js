@@ -55,6 +55,31 @@ const Novera = (() => {
     writePending([...readPending(), item]);
     return true;
   }
+  /** Aviso ao aluno: atividades que ele começou e não terminou, com o % já feito. */
+  async function showPendingBanner(user, container) {
+    if (!user || user.role !== 'student' || !container) return;
+    let pending = [];
+    try { ({ pending } = await api('/api/activities/pending')); } catch { return; }
+    document.querySelector('.pending-banner')?.remove();
+    if (!pending.length) return;
+    const box = document.createElement('section');
+    box.className = 'pending-banner';
+    box.setAttribute('aria-labelledby', 'pending-title');
+    box.innerHTML = `
+      <h2 id="pending-title">⏳ ${pending.length === 1 ? 'Você tem 1 atividade pendente' : `Você tem ${pending.length} atividades pendentes`}</h2>
+      <p class="small muted">Você começou e não terminou. Termine para sua professora ver o seu resultado.</p>
+      <ul>${pending.map((p) => `
+        <li><a href="/atividade?id=${encodeURIComponent(p.key)}">
+          <span>${esc(p.icon || '•')} <b>${esc(p.title)}</b> <span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span>
+            <br><span class="small dim">${esc(p.typeLabel || '')} · ${p.percent}% feito (${p.answered} de ${p.total})</span></span>
+          <span class="t-pend-bar" aria-hidden="true"><span data-w="${p.percent}"></span></span>
+          <span class="pb-go">Terminar →</span>
+        </a></li>`).join('')}
+      </ul>`;
+    box.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
+    container.prepend(box);
+  }
+
   let flushing = false;
   async function flushPendingAttempts(user) {
     if (flushing || !user || user.mustChangePassword || user.role !== 'student') return;
@@ -364,7 +389,7 @@ const Novera = (() => {
   if (document.body) mountCosmos(); else document.addEventListener('DOMContentLoaded', mountCosmos);
 
   return {
-    api, ApiError, currentUser, requireUser, queueAttempt, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
+    api, ApiError, currentUser, requireUser, queueAttempt, showPendingBanner, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
     KIND_LABEL, iconLabel, openViewer, BRAND_INNER,
   };
 })();

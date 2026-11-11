@@ -393,3 +393,38 @@ test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail
   assert.equal((await setPw({ password: 'Praia#2026k', username: '' })).data.student.username, null);
   assert.equal((await tryLogin('ninar', 'Praia#2026k')).status, 401);
 });
+
+test('atividade não terminada: professora vê o % e o aluno vê como pendente; some ao concluir', async () => {
+  await db.query('DELETE FROM auth_attempts');
+  const st = client();
+  const reg = await st('POST', '/api/auth/register', { json: { name: 'Pia Torres', email: 'pia.pendente@exemplo.com', password: STRONG, level: 'A1' } });
+  const sid = reg.data.user.id;
+  const key = 'b-order-introductions';
+  const put = (json) => st('PUT', `/api/activities/${key}/progress`, { json });
+
+  assert.equal((await put({ answered: 5, correct: 1, total: 4 })).status, 400, 'respondeu mais que o total');
+  assert.equal((await put({ answered: 2, correct: 3, total: 4 })).status, 400, 'acertou mais que respondeu');
+  assert.equal((await st('PUT', '/api/activities/b-nao-existe/progress', { json: { answered: 1, correct: 1, total: 4 } })).status, 404);
+  assert.equal((await put({ answered: 1, correct: 1, total: 4 })).status, 200);
+  assert.equal((await put({ answered: 2, correct: 1, total: 4 })).status, 200, 'atualiza o mesmo registro');
+
+  const mine = (await st('GET', '/api/activities/pending')).data.pending;
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].key, key);
+  assert.equal(mine[0].percent, 50);
+
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const ov = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid);
+  assert.equal(ov.pending.length, 1);
+  assert.deepEqual([ov.pending[0].percent, ov.pending[0].answered, ov.pending[0].total, ov.pending[0].hits, ov.pending[0].misses], [50, 2, 4, 1, 1]);
+  assert.ok(ov.lastAt, 'conta como última atividade');
+  const det = (await t('GET', `/api/teacher/students/${sid}`)).data;
+  assert.equal(det.pending[0].percent, 50);
+
+  // Concluiu: sai das pendentes.
+  assert.equal((await st('POST', `/api/activities/${key}/attempts`, { json: { score: 3, total: 4 } })).status, 201);
+  assert.equal((await st('GET', '/api/activities/pending')).data.pending.length, 0);
+  assert.equal((await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid).pending.length, 0);
+  // Sem login não há progresso.
+  assert.equal((await client()('PUT', `/api/activities/${key}/progress`, { json: { answered: 1, correct: 1, total: 4 } })).status, 401);
+});

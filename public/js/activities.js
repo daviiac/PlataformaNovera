@@ -7,6 +7,7 @@
   const params = new URLSearchParams(location.search);
   const tipo = params.get('tipo');
   renderTopbar(user, tipo === 'worksheet' ? 'worksheets' : 'atividades');
+  Novera.showPendingBanner(user, document.querySelector('main'));
 
   const { types, isAdmin } = await api('/api/activities/types');
 

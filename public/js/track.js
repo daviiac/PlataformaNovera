@@ -5,6 +5,7 @@
   const user = await requireUser();
   if (user.role === 'student' && !user.level) return window.location.replace('/nivelamento');
   renderTopbar(user, 'trilha');
+  Novera.showPendingBanner(user, document.querySelector('main'));
 
   const $ = (id) => document.getElementById(id);
   const isStudent = user.role === 'student';

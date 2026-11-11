@@ -150,9 +150,26 @@ const Act = (() => {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
+  // ---------------------------------------------------------------- progresso parcial
+  // Enviado a cada resposta: se o aluno sair antes de terminar, a professora vê o percentual
+  // e o aluno é lembrado da atividade pendente quando voltar.
+  let lastProgress = '';
+  let progressInFlight = Promise.resolve();
+  function reportProgress(key, answered, correct, total) {
+    const sig = `${key}|${answered}|${correct}|${total}`;
+    if (sig === lastProgress || !total) return;
+    lastProgress = sig;
+    progressInFlight = progressInFlight
+      .then(() => Novera.api(`/api/activities/${encodeURIComponent(key)}/progress`, { method: 'PUT', body: { answered, correct, total } }))
+      .catch(() => { lastProgress = ''; });
+  }
+
   // ---------------------------------------------------------------- resultado
   async function saveAttempt(key, score, total) {
     try {
+      // O resultado final precisa chegar DEPOIS do último progresso (que é apagado ao concluir).
+      await progressInFlight;
+      lastProgress = '';
       const r = await Novera.api(`/api/activities/${encodeURIComponent(key)}/attempts`, { method: 'POST', body: { score, total } });
       return r.best;
     } catch (err) {
@@ -193,6 +210,6 @@ const Act = (() => {
     normalize, same, wordDiff, shuffle,
     ttsSupported, speak, stopSpeaking, voicesReady,
     loadYouTube, youtubePlayer, thumb, fmtTime,
-    saveAttempt, resultHtml, applyBars,
+    saveAttempt, reportProgress, resultHtml, applyBars,
   };
 })();

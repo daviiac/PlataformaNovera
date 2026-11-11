@@ -137,7 +137,7 @@ const SCHEMA = `
  * O dono das tabelas ignora o RLS, por isso o servidor continua funcionando normalmente.
  */
 const TABLES = ['users', 'sessions', 'placement_results', 'modules', 'materials', 'auth_attempts', 'activities',
-  'activity_attempts', 'level_changes', 'homework_files', 'lesson_links', 'app_schema'];
+  'activity_attempts', 'activity_progress', 'level_changes', 'homework_files', 'lesson_links', 'app_schema'];
 const LOCKDOWN = [
   ...TABLES.map((t) => `ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`),
   `DO $$
@@ -165,6 +165,16 @@ const MIGRATIONS = [
   // todos os bloqueios de login de um aluno ao redefinir a senha.
   'ALTER TABLE auth_attempts ADD COLUMN IF NOT EXISTS subject TEXT',
   'CREATE INDEX IF NOT EXISTS idx_auth_attempts_subject ON auth_attempts(subject)',
+  // Atividade começada e ainda não terminada: quanto o aluno já respondeu (some ao concluir).
+  `CREATE TABLE IF NOT EXISTS activity_progress (
+     user_id      INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     activity_key TEXT        NOT NULL,
+     answered     INTEGER     NOT NULL,
+     correct      INTEGER     NOT NULL,
+     total        INTEGER     NOT NULL,
+     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (user_id, activity_key)
+   )`,
   `DO $$
    DECLARE c record;
    BEGIN

@@ -39,8 +39,16 @@ async function activityIndex(keys) {
   return index;
 }
 
+function pendingDto(p, info) {
+  return {
+    key: p.activity_key, title: info.title, type: info.type, level: info.level,
+    answered: p.answered, total: p.total, hits: p.correct, misses: p.answered - p.correct,
+    percent: Math.round((p.answered / p.total) * 100), at: p.updated_at,
+  };
+}
+
 router.get('/overview', ah(async (req, res) => {
-  const [students, grouped, placements] = await Promise.all([
+  const [students, grouped, placements, progress] = await Promise.all([
     db.query(`
       SELECT u.id, u.name, u.email, u.username, u.level, u.created_at, u.active, u.deactivated_at,
              lc.from_level AS previous_level, lc.created_at AS level_changed_at
@@ -60,12 +68,22 @@ router.get('/overview', ah(async (req, res) => {
              SUM(score)::int AS points, SUM(max_score - score)::int AS lost, MAX(created_at) AS last_at
       FROM placement_results GROUP BY user_id
     `),
+    db.query('SELECT user_id, activity_key, answered, correct, total, updated_at FROM activity_progress ORDER BY updated_at DESC'),
   ]);
 
-  const index = await activityIndex([...new Set(grouped.map((g) => g.activity_key))]);
+  const index = await activityIndex([...new Set([...grouped, ...progress].map((g) => g.activity_key))]);
   const byUser = new Map(students.map((s) => [s.id, {
-    ...s, categories: {}, done: 0, hits: 0, misses: 0, attempts: 0, lastAt: null,
+    ...s, categories: {}, done: 0, hits: 0, misses: 0, attempts: 0, lastAt: null, pending: [],
   }]));
+
+  // Atividades começadas e não terminadas, com o percentual já respondido.
+  for (const p of progress) {
+    const u = byUser.get(p.user_id);
+    const info = index.get(p.activity_key);
+    if (!u || !info) continue;
+    u.pending.push(pendingDto(p, info));
+    if (!u.lastAt || p.updated_at > u.lastAt) u.lastAt = p.updated_at;
+  }
 
   const bump = (u, cat, g) => {
     const c = u.categories[cat] || (u.categories[cat] = { attempts: 0, hits: 0, misses: 0, activities: 0, lastAt: null });
@@ -106,11 +124,13 @@ router.get('/students/:id', ah(async (req, res) => {
     : null;
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
 
-  const [attempts, placements] = await Promise.all([
+  const [attempts, placements, progress] = await Promise.all([
     db.query('SELECT activity_key, score, total, created_at FROM activity_attempts WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 500', [id]),
     db.query('SELECT level, score, max_score, created_at FROM placement_results WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50', [id]),
+    db.query('SELECT activity_key, answered, correct, total, updated_at FROM activity_progress WHERE user_id = $1 ORDER BY updated_at DESC', [id]),
   ]);
-  const index = await activityIndex([...new Set(attempts.map((a) => a.activity_key))]);
+  const index = await activityIndex([...new Set([...attempts, ...progress].map((a) => a.activity_key))]);
+  const pending = progress.filter((p) => index.has(p.activity_key)).map((p) => pendingDto(p, index.get(p.activity_key)));
 
   const rows = attempts.map((a) => {
     const info = index.get(a.activity_key) || { type: null, title: '(atividade removida)', level: null };
@@ -135,6 +155,7 @@ router.get('/students/:id', ah(async (req, res) => {
     student,
     categories: CATEGORIES,
     attempts: rows,
+    pending,
     levelHistory: history.map((h) => ({ from: h.from_level, to: h.to_level, at: h.created_at, by: h.changed_by_name || 'Nivelamento' })),
   });
 }));

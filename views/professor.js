@@ -22,11 +22,14 @@
     const H = students.reduce((n, s) => n + s.hits, 0);
     const M = students.reduce((n, s) => n + s.misses, 0);
     const totalAttempts = students.reduce((n, s) => n + s.attempts, 0);
+    const pendingTotal = students.reduce((n, s) => n + (s.pending?.length || 0), 0);
+    const pendingStudents = students.filter((s) => s.pending?.length).length;
     const g = pct(H, M);
     $('t-stats').innerHTML = `
       <div class="t-stat"><strong>${students.length}</strong><span>alunos cadastrados${inactive ? ` (${students.length - inactive} ativos · ${inactive} inativo${inactive > 1 ? 's' : ''})` : ''}</span></div>
       <div class="t-stat"><strong>${practiced.length}</strong><span>já fizeram atividades</span></div>
       <div class="t-stat"><strong>${totalAttempts}</strong><span>atividades realizadas</span></div>
+      <div class="t-stat"><strong class="${pendingTotal ? 't-warn' : ''}">${pendingTotal}</strong><span>atividades pendentes (não terminadas)${pendingStudents ? ` · ${pendingStudents} aluno${pendingStudents > 1 ? 's' : ''}` : ''}</span></div>
       <div class="t-stat"><strong class="${pctClass(g)}">${g === null ? '—' : `${g}%`}</strong><span>aproveitamento geral (✓ ${H} · ✗ ${M})</span></div>`;
   }
 
@@ -72,6 +75,7 @@
   function card(s, cat) {
     const p = pct(s.hits, s.misses);
     const cats = categories.filter((c) => s.categories[c.key] && (!cat || c.key === cat));
+    const pend = (s.pending || []).filter((p) => !cat || p.type === cat);
     const levelBadge = s.level ? `<span class="level-badge level-${esc(s.level)}">${esc(s.level)}</span>` : '<span class="tag">Sem nível</span>';
     const off = s.active === false;
     const statusBadge = off
@@ -92,7 +96,18 @@
         </header>
         ${cats.length
           ? `<div class="t-chips">${cats.map((c) => chip(c, s.categories[c.key])).join('')}</div>`
-          : `<p class="small dim t-empty">${cat ? 'Nenhuma atividade nesta categoria.' : 'Ainda não fez nenhuma atividade.'}</p>`}
+          : pend.length ? '' : `<p class="small dim t-empty">${cat ? 'Nenhuma atividade nesta categoria.' : 'Ainda não fez nenhuma atividade.'}</p>`}
+        ${pend.length ? `
+          <div class="t-pending">
+            <p class="small"><b>⏳ ${pend.length === 1 ? '1 atividade pendente' : `${pend.length} atividades pendentes`}</b> <span class="dim">— começou e não terminou</span></p>
+            <ul>${pend.map((p) => `
+              <li>
+                <span class="t-pend-name">${catOf(p.type).icon} ${esc(p.title)} ${p.level ? `<span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span>` : ''}</span>
+                <span class="t-pend-bar" title="${p.percent}% respondido"><span style-pct="${p.percent}"></span></span>
+                <span class="t-pend-nums"><b>${p.percent}%</b> feito (${p.answered} de ${p.total}) · <span class="t-hit">✓ ${p.hits}</span> <span class="t-miss">✗ ${p.misses}</span> · ${formatDate(p.at)}</span>
+              </li>`).join('')}
+            </ul>
+          </div>` : ''}
         ${s.done ? `<p class="small dim">📖 ${s.done} lição(ões)/videoaula(s) concluída(s).</p>` : ''}
         <div class="t-level">
           <span class="small"><b>Nível do aluno:</b> ${s.level ? esc(s.level) : 'sem nível'}${s.previous_level ? ` <span class="dim">(antes: ${esc(s.previous_level)} · ${formatDate(s.level_changed_at)})</span>` : ''}</span>
@@ -356,7 +371,7 @@
     const status = $('t-status').value;
     let list = students.filter((s) => (!q || s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q) || (s.username || '').includes(q))
       && (!level || (level === '-' ? !s.level : s.level === level))
-      && (!status || (status === 'inactive') === (s.active === false)));
+      && (!status || (status === 'pending' ? s.pending?.length > 0 : (status === 'inactive') === (s.active === false))));
     const acc = (s) => {
       const d = cat ? s.categories[cat] : s;
       return d ? pct(d.hits, d.misses) : null;
@@ -375,6 +390,7 @@
     $('t-list').innerHTML = list.length
       ? list.map((s) => card(s, cat)).join('')
       : `<div class="card empty-state"><p class="muted">${students.length ? 'Nenhum aluno com esses filtros.' : 'Nenhum aluno cadastrado ainda.'}</p></div>`;
+    $('t-list').querySelectorAll('[style-pct]').forEach((el) => { el.style.width = `${el.getAttribute('style-pct')}%`; });
   }
 
   // ------------------------------------------------------------ detalhes do aluno
