@@ -328,3 +328,35 @@ test('redefinir senha libera o bloqueio por tentativas; depois da troca entra s�
   assert.equal(again.status, 200, 'entra com a senha nova');
   assert.equal(again.data.user.mustChangePassword, false);
 });
+
+test('professor(a) define a senha escolhida para o aluno', async () => {
+  const email = 'lara.definir@exemplo.com';
+  const reg = await client()('POST', '/api/auth/register', { json: { name: 'Lara Mendes', email, password: STRONG, level: 'A1' } });
+  assert.equal(reg.status, 201);
+  const sid = reg.data.user.id;
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const setPw = (json) => t('POST', `/api/teacher/students/${sid}/set-password`, { json });
+
+  assert.equal((await setPw({ password: 'fraca' })).data.code, 'WEAK_PASSWORD');
+  assert.equal((await setPw({ password: 'Lara#2026x' })).status, 400, 'não aceita o nome do aluno');
+  assert.equal((await setPw({ password: ' Morro#2026q' })).status, 400, 'sem espaço nas pontas');
+
+  // Sem pedir troca: entra direto com a senha definida.
+  const ok = await setPw({ password: 'Morro#2026q' });
+  assert.equal(ok.status, 200);
+  const l1 = await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Morro#2026q' } });
+  assert.equal(l1.status, 200);
+  assert.equal(l1.data.user.mustChangePassword, false);
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } })).status, 401, 'senha antiga não vale');
+
+  // Pedindo troca: entra e é levado a criar uma senha própria.
+  assert.equal((await setPw({ password: 'Praia#2026k', requireChange: true })).status, 200);
+  const l2 = await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Praia#2026k' } });
+  assert.equal(l2.data.user.mustChangePassword, true);
+
+  // Só alunos; aluno não usa a rota.
+  const staff = await db.one('SELECT id FROM users WHERE username = $1', [ADMIN.user]);
+  assert.equal((await t('POST', `/api/teacher/students/${staff.id}/set-password`, { json: { password: 'Morro#2026q' } })).status, 404);
+  const st = await login(email, 'Praia#2026k');
+  assert.equal((await st('POST', `/api/teacher/students/${sid}/set-password`, { json: { password: 'Morro#2026q' } })).status, 403);
+});

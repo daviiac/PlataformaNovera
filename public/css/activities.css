@@ -38,7 +38,13 @@
 .t-student.is-inactive { border-style: dashed; background: linear-gradient(180deg, rgba(40, 24, 52, 0.55), rgba(24, 14, 36, 0.55)); }
 .t-student.is-inactive .t-avatar { background: rgba(255, 255, 255, 0.06); color: var(--dim); border-color: var(--line); }
 .t-student.is-inactive .t-chips, .t-student.is-inactive .t-total { opacity: 0.6; }
-.delete-card .field { margin: 0.4rem 0 0.9rem; display: grid; gap: 0.35rem; }
+.delete-card .field, .setpw-card .field { margin: 0.4rem 0 0.9rem; display: grid; gap: 0.35rem; text-align: left; }
+.setpw-card .pw-checks { margin: 0.2rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; color: var(--dim); }
+.setpw-card .pw-checks li.ok { color: var(--success); }
+.setpw-check { display: flex; gap: 0.5rem; align-items: flex-start; text-align: left; margin-bottom: 0.9rem; cursor: pointer; }
+.setpw-check input { margin-top: 0.2rem; accent-color: var(--violet); }
+.setpw-card .alert:empty { display: none; }
+.setpw-card input[type="text"],
 .delete-card input { font: inherit; color: var(--text); background: rgba(14, 7, 24, 0.6); border: 1px solid var(--line); border-radius: 10px; padding: 0.55rem 0.7rem; letter-spacing: 0.08em; }
 .delete-actions { display: flex; gap: 0.6rem; justify-content: flex-end; flex-wrap: wrap; }
 .delete-actions .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }

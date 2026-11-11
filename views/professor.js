@@ -102,6 +102,7 @@
           </select>
           <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
           <button type="button" class="btn btn-ghost btn-sm" data-reset-pw title="Gera uma senha provisória para o aluno">🔑 Redefinir senha</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-set-pw title="Você escolhe a senha do aluno">✏️ Definir senha</button>
         </div>
         <div class="t-access">
           <span class="small"><b>Acesso:</b> ${off
@@ -181,6 +182,74 @@
     document.body.classList.add('viewer-open');
     document.body.appendChild(el);
     el.querySelector('[data-copy="pw"]').focus();
+  }
+
+  // ------------------------------------------------------------ definir senha escolhida
+  function setPassword(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const first = s.name.split(' ')[0];
+    const el = document.createElement('div');
+    el.className = 'viewer';
+    el.innerHTML = `
+      <div class="card reset-card setpw-card" role="dialog" aria-modal="true" aria-labelledby="setpw-title">
+        <h2 id="setpw-title">✏️ Definir senha de ${esc(first)}</h2>
+        <p class="small muted">Digite a senha que ${esc(first)} vai usar para entrar com o e-mail <b>${esc(s.email || '')}</b>.</p>
+        <div class="field">
+          <label for="setpw-input" class="small">Senha nova</label>
+          <div class="setpw-row">
+            <input id="setpw-input" type="text" autocomplete="off" spellcheck="false" maxlength="128">
+          </div>
+          <ul class="pw-checks small" id="setpw-checks"></ul>
+        </div>
+        <label class="setpw-check small"><input type="checkbox" id="setpw-change">
+          Pedir para ${esc(first)} criar uma senha própria no próximo login</label>
+        <p class="alert alert-error" id="setpw-error" role="alert"></p>
+        <div class="delete-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+          <button type="button" class="btn" data-save disabled>Salvar senha</button>
+        </div>
+      </div>`;
+    const close = () => { el.remove(); document.body.classList.remove('viewer-open'); };
+    const input = el.querySelector('#setpw-input');
+    const save = el.querySelector('[data-save]');
+    const evaluate = () => {
+      const r = PasswordPolicy.check(input.value, { name: s.name, email: s.email });
+      const spaces = input.value !== input.value.trim();
+      el.querySelector('#setpw-checks').innerHTML = r.checks
+        .map((c) => `<li class="${c.ok ? 'ok' : ''}">${c.ok ? '✓' : '•'} ${esc(c.id === 'personal' ? `Sem o nome ou e-mail de ${first}` : c.label)}</li>`).join('')
+        + (spaces ? '<li>• Sem espaço no começo ou no fim</li>' : '');
+      save.disabled = !r.ok || spaces;
+      return !save.disabled;
+    };
+    input.addEventListener('input', evaluate);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+      if (e.key === 'Enter' && e.target === input && evaluate()) save.click();
+    });
+    el.addEventListener('click', async (e) => {
+      if (e.target === el || e.target.closest('[data-close]')) return close();
+      if (!e.target.closest('[data-save]') || save.disabled) return;
+      save.disabled = true;
+      save.textContent = 'Salvando…';
+      el.querySelector('#setpw-error').textContent = '';
+      const requireChange = el.querySelector('#setpw-change').checked;
+      try {
+        await api(`/api/teacher/students/${id}/set-password`, { method: 'POST', body: { password: input.value, requireChange } });
+        close();
+        Novera.toast(requireChange
+          ? `Senha de ${first} definida. No próximo login, ${first} cria uma senha própria.`
+          : `Senha de ${first} definida ✓ ${first} já pode entrar com ela.`);
+      } catch (err) {
+        el.querySelector('#setpw-error').textContent = err.message;
+        save.textContent = 'Salvar senha';
+        evaluate();
+      }
+    });
+    document.body.classList.add('viewer-open');
+    document.body.appendChild(el);
+    evaluate();
+    input.focus();
   }
 
   // ------------------------------------------------------------ inativar / reativar acesso
@@ -321,6 +390,8 @@
     if (save) return saveLevel(save.closest('.t-student'));
     const reset = e.target.closest('[data-reset-pw]');
     if (reset) return resetPassword(reset.closest('.t-student'));
+    const setPw = e.target.closest('[data-set-pw]');
+    if (setPw) return setPassword(setPw.closest('.t-student'));
     const toggle = e.target.closest('[data-toggle-active]');
     if (toggle) return toggleActive(toggle.closest('.t-student'));
     const del = e.target.closest('[data-delete]');

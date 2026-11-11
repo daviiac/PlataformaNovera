@@ -190,6 +190,34 @@ router.post('/students/:id/reset-password', ah(async (req, res) => {
 }));
 
 /**
+ * Define uma senha escolhida pela professora (ex.: combinada com o aluno).
+ * Segue as mesmas regras do cadastro. Com requireChange, o aluno cria uma senha nova ao entrar.
+ * As sessões abertas do aluno são encerradas e os bloqueios de login liberados.
+ */
+router.post('/students/:id/set-password', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const requireChange = req.body?.requireChange === true;
+  const student = Number.isInteger(id)
+    ? await db.one("SELECT id, name, email FROM users WHERE id = $1 AND role = 'student'", [id])
+    : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  if (password !== password.trim()) return res.status(400).json({ error: 'A senha não pode começar nem terminar com espaço.' });
+
+  const strength = PasswordPolicy.check(password, { name: student.name, email: student.email });
+  if (!strength.ok) {
+    const missing = strength.checks.filter((c) => !c.ok).map((c) => c.label.toLowerCase());
+    return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });
+  }
+
+  await db.query('UPDATE users SET password_hash = $1, must_change_password = $2 WHERE id = $3',
+    [await hashPassword(password), requireChange, id]);
+  await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
+  await clearAccountLimits(student.email);
+  res.json({ ok: true, requireChange, student: { id: student.id, name: student.name, email: student.email } });
+}));
+
+/**
  * Inativa ou reativa o acesso do aluno (aluno que saiu ou está inativo na escola).
  * Inativo: não consegue entrar e as sessões abertas são encerradas na hora. O histórico é mantido.
  */
