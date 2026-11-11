@@ -7,13 +7,20 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const db = require('../db');
-const { ah, requireTeacher, hashPassword, clearAccountLimits } = require('../auth');
+const { ah, requireTeacher, hashPassword, clearAccountLimits, rateLimit } = require('../auth');
 const PasswordPolicy = require('../../public/js/password-policy');
 const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
 const { ORDER, levelHistory, unlockedLevels } = require('../levels');
 
 const router = express.Router();
 router.use(requireTeacher);
+
+// Ações que alteram alunos (senha, nível, acesso, exclusão): limite por professor(a).
+// Folgado para o uso normal; impede estragos em massa se alguém roubar uma sessão.
+const changeLimiter = rateLimit([
+  { name: 'teacher-change', windowMs: 10 * 60 * 1000, max: 120, keyFn: (req) => `u${req.user?.id}` },
+]);
+router.use((req, res, next) => (req.method === 'GET' ? next() : changeLimiter(req, res, next)));
 
 // Tipos que não têm acerto/erro (só "concluído").
 const UNSCORED = new Set(['grammar_lesson', 'video_lesson']);

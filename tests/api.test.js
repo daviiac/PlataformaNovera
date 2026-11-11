@@ -25,7 +25,7 @@ const { makeDocx, makePptx, makeXlsx } = require('./fixtures');
 
 // Senha usada só no banco temporário dos testes (nunca a senha real do admin).
 const TEST_ADMIN_USER = 'admin-teste';
-const TEST_ADMIN_PASSWORD = 'senha-de-teste-123';
+const TEST_ADMIN_PASSWORD = 'Rio#Azul2026x';
 
 let server;
 let base;

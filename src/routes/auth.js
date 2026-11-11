@@ -106,8 +106,16 @@ router.post('/login', loginLimiter, ah(async (req, res) => {
     });
   }
 
+  // Professor(a)/administrador com senha fraca (ex.: criada antes da política de senhas):
+  // entra, mas é obrigado a criar uma senha forte antes de usar qualquer coisa.
+  if (user.role !== 'student' && !user.must_change_password
+      && !PasswordPolicy.check(password, { name: user.name, email: user.email || user.username }).ok) {
+    await db.query('UPDATE users SET must_change_password = true WHERE id = $1', [user.id]);
+    user.must_change_password = true;
+  }
+
   await resetRateLimit('login-id', `${req.ip}|${identifier}`);
-  await createSession(res, user.id);
+  await createSession(res, user.id, user.role);
   res.json({ user: publicUser(user) });
 }));
 
@@ -133,7 +141,7 @@ router.post('/change-password', changeLimiter, ah(async (req, res) => {
   if (!row.must_change_password && !(await verifyPassword(current, row.password_hash))) {
     return res.status(400).json({ error: 'A senha atual está incorreta.', code: 'WRONG_PASSWORD' });
   }
-  const strength = PasswordPolicy.check(password, { name: req.user.name, email: req.user.email });
+  const strength = PasswordPolicy.check(password, { name: req.user.name, email: req.user.email || req.user.username });
   if (!strength.ok) {
     const missing = strength.checks.filter((c) => !c.ok).map((c) => c.label.toLowerCase());
     return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });

@@ -29,13 +29,17 @@ function cookieOptions() {
   return { httpOnly: true, sameSite: 'strict', secure: IS_PRODUCTION, path: '/' };
 }
 
+// Professor(a) e administrador têm mais poder: a sessão dura menos (12 horas).
+const STAFF_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
 /** Cria uma sessão opaca. Só o hash SHA-256 do token fica no banco. */
-async function createSession(res, userId) {
+async function createSession(res, userId, role = 'student') {
+  const ttl = role === 'student' ? SESSION_TTL_MS : STAFF_SESSION_TTL_MS;
   const token = crypto.randomBytes(32).toString('base64url');
   await db.query('DELETE FROM sessions WHERE expires_at < $1', [Date.now()]);
   await db.query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
-    [sha256(token), userId, Date.now() + SESSION_TTL_MS]);
-  res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: SESSION_TTL_MS });
+    [sha256(token), userId, Date.now() + ttl]);
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: ttl });
 }
 
 async function destroySession(req, res) {

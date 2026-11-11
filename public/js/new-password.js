@@ -7,10 +7,12 @@
   const $ = (id) => document.getElementById(id);
   const pw = $('new-password');
   const confirm = $('new-confirm');
-  $('newpw-intro').textContent = `Olá, ${user.name.split(' ')[0]}! Você entrou com a senha provisória que sua professora gerou. Para continuar, crie uma senha só sua — ninguém mais vai saber qual é.`;
+  $('newpw-intro').textContent = user.role === 'student'
+    ? `Olá, ${user.name.split(' ')[0]}! Você entrou com a senha provisória que sua professora gerou. Para continuar, crie uma senha só sua — ninguém mais vai saber qual é.`
+    : `Olá, ${user.name.split(' ')[0]}! Por segurança, contas de professor(a) e administrador precisam de uma senha forte. Crie uma senha nova para continuar.`;
 
   function evaluate() {
-    const result = PasswordPolicy.check(pw.value, { name: user.name, email: user.email });
+    const result = PasswordPolicy.check(pw.value, { name: user.name, email: user.email || user.username });
     const pct = Math.round((result.passed / result.total) * 100);
     $('pw-bar').style.width = `${pw.value ? pct : 0}%`;
     $('pw-bar').className = pw.value ? `pw-${result.strength.replace('é', 'e')}` : '';

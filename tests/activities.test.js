@@ -19,7 +19,7 @@ const { ensureAdmin, ensureDefaultModules } = require('../scripts/seed');
 const { QUESTIONS } = require('../src/placement');
 const { BUILTIN } = require('../src/activities/catalog');
 
-const ADMIN = { user: 'admin-teste', pass: 'senha-de-teste-123' };
+const ADMIN = { user: 'admin-teste', pass: 'Rio#Azul2026x' };
 let server;
 let base;
 

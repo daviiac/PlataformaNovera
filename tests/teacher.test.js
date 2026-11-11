@@ -19,8 +19,8 @@ const { QUESTIONS } = require('../src/placement');
 const PasswordPolicy = require('../public/js/password-policy');
 
 // Credenciais usadas só no banco temporário dos testes.
-const ADMIN = { user: 'admin-teste', pass: 'Admin#Teste2026' };
-const TEACHER = { user: 'prof-teste', pass: 'Prof#Teste2026' };
+const ADMIN = { user: 'admin-teste', pass: 'Rio#Azul2026x' };
+const TEACHER = { user: 'prof-teste', pass: 'Mar#Verde2026k' };
 const STRONG = 'Lago#Verde2026';
 let server;
 let base;
@@ -435,4 +435,35 @@ test('atividade não terminada: professora vê o % e o aluno vê como pendente; 
   assert.equal((await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid).pending.length, 0);
   // Sem login não há progresso.
   assert.equal((await client()('PUT', `/api/activities/${key}/progress`, { json: { answered: 1, correct: 1, total: 4 } })).status, 401);
+});
+
+test('segurança: professor(a) com senha fraca é obrigado(a) a criar uma forte; sessão curta para equipe', async () => {
+  await db.query('DELETE FROM auth_attempts');
+  // Senha fraca de propósito (só no banco temporário dos testes).
+  await ensureTeacher({ username: 'prof-fraca', password: 'fraquinha1', name: 'Prof Fraca' });
+  const c = client();
+  const r = await c('POST', '/api/auth/login', { json: { identifier: 'prof-fraca', password: 'fraquinha1' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.user.mustChangePassword, true, 'precisa trocar a senha');
+  assert.match(r.headers.get('set-cookie'), /Max-Age=43200/, 'sessão de 12 horas para a equipe');
+  assert.equal((await c('GET', '/api/teacher/overview')).data.code, 'PASSWORD_CHANGE_REQUIRED', 'nada funciona antes da troca');
+  assert.equal((await c('POST', '/api/auth/change-password', { json: { password: 'Prof#Fraca2026q' } })).data.code, 'WEAK_PASSWORD', 'não aceita o próprio nome');
+  assert.equal((await c('POST', '/api/auth/change-password', { json: { password: 'Lua#Cheia2026q' } })).status, 200);
+  assert.equal((await c('GET', '/api/teacher/overview')).status, 200);
+  // Com a senha forte, o próximo login entra direto.
+  const again = await client()('POST', '/api/auth/login', { json: { identifier: 'prof-fraca', password: 'Lua#Cheia2026q' } });
+  assert.equal(again.data.user.mustChangePassword, false);
+});
+
+test('segurança: pedidos de outro site são recusados', async () => {
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const cookie = (await (async () => {
+    const res = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ identifier: TEACHER.user, password: TEACHER.pass }) });
+    return res.headers.get('set-cookie').split(';')[0];
+  })());
+  const cross = await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { cookie, 'sec-fetch-site': 'cross-site' } });
+  assert.equal(cross.status, 403);
+  const evil = await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { cookie, origin: 'https://site-malicioso.example' } });
+  assert.equal(evil.status, 403);
+  assert.equal((await t('GET', '/api/auth/me')).data.user.username, TEACHER.user);
 });

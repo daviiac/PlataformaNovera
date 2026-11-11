@@ -18,8 +18,8 @@ const { ensureAdmin, ensureTeacher, ensureDefaultModules } = require('../scripts
 const { HOMEWORK, LESSONS } = require('../src/lessons/catalog');
 const { QUESTIONS } = require('../src/placement');
 
-const ADMIN = { user: 'admin-teste', pass: 'Admin#Teste2026' };
-const TEACHER = { user: 'prof-teste', pass: 'Prof#Teste2026' };
+const ADMIN = { user: 'admin-teste', pass: 'Rio#Azul2026x' };
+const TEACHER = { user: 'prof-teste', pass: 'Mar#Verde2026k' };
 const STRONG = 'Lago#Verde2026';
 let server;
 let base;

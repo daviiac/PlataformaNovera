@@ -2,11 +2,16 @@
 
 const express = require('express');
 const db = require('../db');
-const { ah, requireAuth } = require('../auth');
+const { ah, requireAuth, rateLimit } = require('../auth');
 const { publicQuestions, grade, QUESTIONS } = require('../placement');
 
 const router = express.Router();
 router.use(requireAuth);
+
+// Nivelamento: poucas tentativas por hora por aluno (o resultado muda o nível).
+const submitLimiter = rateLimit([
+  { name: 'placement-submit', windowMs: 60 * 60 * 1000, max: 20, keyFn: (req) => `u${req.user?.id}` },
+]);
 
 router.get('/questions', ah(async (req, res) => {
   const last = await db.one(
@@ -16,7 +21,7 @@ router.get('/questions', ah(async (req, res) => {
   res.json({ questions: publicQuestions(), currentLevel: req.user.level, lastResult: last });
 }));
 
-router.post('/submit', ah(async (req, res) => {
+router.post('/submit', submitLimiter, ah(async (req, res) => {
   const raw = req.body?.answers;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return res.status(400).json({ error: 'Envie as respostas no formato { answers: { idQuestão: índice } }.' });

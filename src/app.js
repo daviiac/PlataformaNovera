@@ -47,6 +47,8 @@ const SECURITY_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Resource-Policy': 'same-origin',
   'Content-Security-Policy': CSP,
+  // Só HTTPS por 2 anos (o navegador nunca mais tenta HTTP neste domínio).
+  ...(config.IS_PRODUCTION ? { 'Strict-Transport-Security': 'max-age=63072000; includeSubDomains' } : {}),
 };
 
 app.use((req, res, next) => {
@@ -61,6 +63,8 @@ app.use((req, res, next) => {
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 app.use('/api', (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) return next();
+  // O navegador informa de onde veio o pedido: de outro site, nunca altera dados.
+  if (req.get('sec-fetch-site') === 'cross-site') return res.status(403).json({ error: 'Origem não permitida.' });
   const origin = req.get('origin');
   if (!origin) return next();
   let host = null;

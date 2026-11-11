@@ -2,7 +2,13 @@
 
 const express = require('express');
 const db = require('../db');
-const { ah, requireAuth, requirePlacement } = require('../auth');
+const { ah, requireAuth, requirePlacement, rateLimit } = require('../auth');
+
+// Limite de gravações por aluno (resultados e progresso): evita encher o banco com pedidos em massa.
+// Folgado para o uso normal (o progresso é salvo a cada resposta).
+const writeLimiter = rateLimit([
+  { name: 'activity-write', windowMs: 10 * 60 * 1000, max: 600, keyFn: (req) => `u${req.user?.id}` },
+]);
 const { TYPES, TYPE_KEYS, BUILTIN, BUILTIN_BY_KEY, isLyricsSong } = require('../activities/catalog');
 
 // Músicas antigas com a letra completa ficam ocultas para os alunos (direitos autorais).
@@ -149,7 +155,7 @@ router.get('/:key', ah(async (req, res) => {
 }));
 
 /** Registra o resultado de uma tentativa (para o aluno acompanhar o progresso). */
-router.post('/:key/attempts', ah(async (req, res) => {
+router.post('/:key/attempts', writeLimiter, ah(async (req, res) => {
   const a = await findActivity(req.params.key);
   if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
   if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
@@ -167,7 +173,7 @@ router.post('/:key/attempts', ah(async (req, res) => {
 }));
 
 /** Progresso parcial (atividade começada): enviado a cada resposta, enquanto não termina. */
-router.put('/:key/progress', ah(async (req, res) => {
+router.put('/:key/progress', writeLimiter, ah(async (req, res) => {
   const a = await findActivity(req.params.key);
   if (!a) return res.status(404).json({ error: 'Atividade não encontrada.' });
   if (!(await unlockedLevels(req.user)).includes(a.level)) return res.status(403).json(LOCKED);
