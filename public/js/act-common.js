@@ -155,7 +155,16 @@ const Act = (() => {
     try {
       const r = await Novera.api(`/api/activities/${encodeURIComponent(key)}/attempts`, { method: 'POST', body: { score, total } });
       return r.best;
-    } catch {
+    } catch (err) {
+      // Não perde o resultado em silêncio: guarda e avisa o aluno.
+      const queued = !(err.status === 400 || err.status === 403 || err.status === 404) && Novera.queueAttempt(key, score, total);
+      const msg = err.status === 401
+        ? '⚠️ Sua sessão terminou (por exemplo, a senha foi trocada), então este resultado ainda não chegou para a professora. Entre de novo na plataforma: ele será salvo automaticamente.'
+        : queued
+          ? '⚠️ Não conseguimos salvar este resultado agora (verifique a internet). Ele foi guardado e será enviado na próxima vez que você abrir a plataforma.'
+          : `⚠️ Este resultado não foi salvo: ${err.message}`;
+      const box = document.getElementById('act-error');
+      if (box) { box.textContent = msg; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); } else Novera.toast(msg);
       return null;
     }
   }

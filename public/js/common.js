@@ -21,12 +21,60 @@ const Novera = (() => {
     return data;
   }
 
+  let lastUser = null;
+
   async function currentUser() {
     try {
-      return (await api('/api/auth/me')).user;
+      lastUser = (await api('/api/auth/me')).user;
+      if (lastUser) flushPendingAttempts(lastUser);
+      return lastUser;
     } catch {
       return null;
     }
+  }
+
+  // ---------- Resultados que não puderam ser salvos (sessão encerrada, sem internet) ----------
+  // Ficam guardados neste navegador e são enviados assim que o MESMO aluno entrar de novo.
+  const PENDING_KEY = 'novera_pending_attempts';
+  const PENDING_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+  function readPending() {
+    try {
+      const list = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+      return Array.isArray(list) ? list.filter((it) => it && Date.now() - it.at < PENDING_MAX_AGE) : [];
+    } catch { return []; }
+  }
+  function writePending(list) {
+    try {
+      if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(-50)));
+      else localStorage.removeItem(PENDING_KEY);
+    } catch { /* navegador sem armazenamento: não há o que fazer */ }
+  }
+  function queueAttempt(key, score, total) {
+    if (!lastUser) return false;
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, userId: lastUser.id, key, score, total, at: Date.now() };
+    writePending([...readPending(), item]);
+    return true;
+  }
+  let flushing = false;
+  async function flushPendingAttempts(user) {
+    if (flushing || !user || user.mustChangePassword || user.role !== 'student') return;
+    const mine = readPending().filter((it) => it.userId === user.id);
+    if (!mine.length) return;
+    flushing = true;
+    const done = new Set();
+    for (const it of mine) {
+      try {
+        await api(`/api/activities/${encodeURIComponent(it.key)}/attempts`, { method: 'POST', body: { score: it.score, total: it.total } });
+        done.add(it.id);
+      } catch (err) {
+        // Erro definitivo (atividade removida, resultado inválido, nível bloqueado): descarta.
+        if ([400, 403, 404].includes(err.status)) done.add(it.id);
+      }
+    }
+    writePending(readPending().filter((it) => !done.has(it.id)));
+    flushing = false;
+    const sent = mine.filter((it) => done.has(it.id)).length;
+    if (sent) toast(`✓ ${sent === 1 ? '1 resultado guardado foi salvo' : `${sent} resultados guardados foram salvos`} — sua professora já pode ver.`);
   }
 
   /** Página inicial adequada ao perfil/estado do usuário. */
@@ -316,7 +364,7 @@ const Novera = (() => {
   if (document.body) mountCosmos(); else document.addEventListener('DOMContentLoaded', mountCosmos);
 
   return {
-    api, ApiError, currentUser, requireUser, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
+    api, ApiError, currentUser, requireUser, queueAttempt, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
     KIND_LABEL, iconLabel, openViewer, BRAND_INNER,
   };
 })();

@@ -18,7 +18,7 @@
   // ------------------------------------------------------------ números gerais
   function renderStats() {
     const inactive = students.filter((s) => s.active === false).length;
-    const practiced = students.filter((s) => s.attempts > 0 || s.categories.placement);
+    const practiced = students.filter((s) => s.attempts > 0 || s.done > 0 || s.categories.placement);
     const H = students.reduce((n, s) => n + s.hits, 0);
     const M = students.reduce((n, s) => n + s.misses, 0);
     const totalAttempts = students.reduce((n, s) => n + s.attempts, 0);

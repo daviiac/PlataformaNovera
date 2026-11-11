@@ -266,8 +266,7 @@
     });
     stage.querySelector('[data-done]').addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
-      await Act.saveAttempt(activity.key, 1, 1);
-      Novera.toast('Lição marcada como concluída.');
+      if (await Act.saveAttempt(activity.key, 1, 1)) Novera.toast('Lição marcada como concluída.');
     });
   }
 
@@ -732,8 +731,7 @@
     Act.youtubePlayer($('yt-player'), data.youtubeId).catch((err) => { $('act-error').textContent = err.message; });
     stage.querySelector('[data-done]').addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
-      await Act.saveAttempt(activity.key, 1, 1);
-      Novera.toast('Aula marcada como assistida.');
+      if (await Act.saveAttempt(activity.key, 1, 1)) Novera.toast('Aula marcada como assistida.');
     });
   }
 

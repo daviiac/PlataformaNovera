@@ -81,7 +81,11 @@ router.get('/overview', ah(async (req, res) => {
     const u = byUser.get(g.user_id);
     const info = index.get(g.activity_key);
     if (!u || !info) continue;
-    if (UNSCORED.has(info.type)) { u.done += 1; continue; }
+    if (UNSCORED.has(info.type)) {
+      u.done += 1;
+      if (!u.lastAt || g.last_at > u.lastAt) u.lastAt = g.last_at;
+      continue;
+    }
     bump(u, info.type, g);
     u.hits += g.hits;
     u.misses += g.misses;
