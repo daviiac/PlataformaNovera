@@ -42,7 +42,7 @@ function client() {
 
 async function student(email, { placed = true, level = 'TEST' } = {}) {
   const c = client();
-  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno', email, password: 'Lago#Verde2026', level } })).status, 201);
+  assert.equal((await c('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Aluno', email, password: 'Lago#Verde2026', level } })).status, 201);
   if (placed && level === 'TEST') await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
   return c;
 }
@@ -163,18 +163,30 @@ test('só o admin cria atividades com vídeo; validação dos dados', async () =
   assert.equal(one.data.activity.data.youtubeId, 'dQw4w9WgXcQ');
   assert.equal(one.data.activity.data.questions[0].time, 65);
 
+  // Música: só perguntas no clipe. Letra completa não é aceita (direitos autorais).
+  const lyrics = await a('POST', '/api/admin/activities', { json: {
+    type: 'song', level: 'A2', title: 'Our song', youtube: 'dQw4w9WgXcQ',
+    data: { lines: [{ time: 12, text: 'Every [morning] I wake up' }] },
+  } });
+  assert.equal(lyrics.status, 400);
+  assert.match(lyrics.data.error, /direitos autorais/);
   const song = await a('POST', '/api/admin/activities', { json: {
     type: 'song', level: 'A2', title: 'Our song', youtube: 'dQw4w9WgXcQ',
-    data: { lines: [{ time: 12, text: 'Every [morning] I wake up' }, { time: null, text: 'And I [walk] to the [river]' }] },
+    data: { artist: 'Banda', questions: [
+      { time: 20, prompt: 'What is the song about?', options: ['Love', 'Food'], answer: 0 },
+      { time: 50, prompt: 'Which word means "sempre"?', options: ['never', 'always', 'soon'], answer: 1 },
+    ] },
   } });
   assert.equal(song.status, 201);
-  const noGap = await a('POST', '/api/admin/activities', { json: {
-    type: 'song', level: 'A1', title: 'Sem lacuna', youtube: 'dQw4w9WgXcQ', data: { lines: [{ text: 'no gaps here' }] },
-  } });
-  assert.equal(noGap.status, 400);
-
   const listSong = await s('GET', '/api/activities?type=song');
-  assert.equal(listSong.data.activities[0].count.n, 3);
+  assert.equal(listSong.data.activities[0].count.n, 2);
+
+  // Música antiga com letra completa (de antes da mudança): oculta para o aluno, avisada ao admin.
+  const old = await db.one(`INSERT INTO activities (type, level, title, description, data)
+    VALUES ('song', 'A2', 'Letra antiga', '', $1::jsonb) RETURNING id`, [JSON.stringify({ youtubeId: 'dQw4w9WgXcQ', lines: [{ time: null, text: 'I [love] you' }] })]);
+  assert.ok(!(await s('GET', '/api/activities?type=song')).data.activities.some((x) => x.key === `a-${old.id}`));
+  assert.equal((await s('GET', `/api/activities/a-${old.id}`)).status, 404);
+  assert.equal((await a('GET', '/api/admin/activities')).data.activities.find((x) => x.id === old.id).lyrics_hidden, true);
 
   const id = created.data.key.slice(2);
   assert.equal((await s('DELETE', `/api/admin/activities/${id}`)).status, 403);
@@ -186,6 +198,12 @@ test('páginas novas existem e o script do criador é só para admin', async () 
   const s = await student('paginas@exemplo.com');
   assert.equal((await s('GET', '/atividades')).status, 200);
   assert.equal((await s('GET', '/atividade')).status, 200);
+  // Termos e Privacidade: público, com o que o YouTube exige (uso da API, Termos do YouTube, Privacidade do Google).
+  const terms = await client()('GET', '/termos');
+  assert.equal(terms.status, 200);
+  assert.match(terms.data, /Serviços de API do YouTube/);
+  assert.match(terms.data, /youtube\.com\/t\/terms/);
+  assert.match(terms.data, /google\.com\/policies\/privacy/);
   assert.equal((await s('GET', '/admin/admin-activities.js')).status, 302);
   const a = await admin();
   assert.equal((await a('GET', '/admin/admin-activities.js')).status, 200);

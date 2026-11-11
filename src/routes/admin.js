@@ -157,7 +157,8 @@ router.delete('/materials/:id', ah(async (req, res) => {
 router.get('/activities', ah(async (req, res) => {
   const rows = await db.query(`
     SELECT a.id, a.type, a.level, a.title, a.description, a.data->>'youtubeId' AS youtube_id, a.created_at,
-           (SELECT COUNT(*)::int FROM activity_attempts t WHERE t.activity_key = 'a-' || a.id) AS attempts
+           (SELECT COUNT(*)::int FROM activity_attempts t WHERE t.activity_key = 'a-' || a.id) AS attempts,
+           (a.type = 'song' AND a.data->'questions' IS NULL) AS lyrics_hidden
     FROM activities a ORDER BY a.created_at DESC, a.id DESC
   `);
   res.json({ activities: rows });

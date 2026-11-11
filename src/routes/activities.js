@@ -3,7 +3,10 @@
 const express = require('express');
 const db = require('../db');
 const { ah, requireAuth, requirePlacement } = require('../auth');
-const { TYPES, TYPE_KEYS, BUILTIN, BUILTIN_BY_KEY } = require('../activities/catalog');
+const { TYPES, TYPE_KEYS, BUILTIN, BUILTIN_BY_KEY, isLyricsSong } = require('../activities/catalog');
+
+// Músicas antigas com a letra completa ficam ocultas para os alunos (direitos autorais).
+const VISIBLE = "(type <> 'song' OR data->'questions' IS NOT NULL)";
 const { unlockedLevels } = require('../levels');
 
 const router = express.Router();
@@ -61,7 +64,7 @@ async function findActivity(key) {
   const m = /^a-(\d+)$/.exec(key || '');
   if (!m) return null;
   const row = await db.one('SELECT * FROM activities WHERE id = $1', [Number(m[1])]);
-  return row ? fromRow(row) : null;
+  return row && !isLyricsSong(row) ? fromRow(row) : null;
 }
 
 async function bestScores(userId) {
@@ -78,7 +81,7 @@ router.get('/types', ah(async (req, res) => {
   const counts = {};
   for (const t of TYPE_KEYS) counts[t] = { A1: 0, A2: 0, B2: 0 };
   for (const a of BUILTIN) counts[a.type][a.level] += 1;
-  const rows = await db.query('SELECT type, level, COUNT(*)::int AS n FROM activities GROUP BY type, level');
+  const rows = await db.query(`SELECT type, level, COUNT(*)::int AS n FROM activities WHERE ${VISIBLE} GROUP BY type, level`);
   for (const r of rows) if (counts[r.type]) counts[r.type][r.level] += r.n;
   res.json({
     userLevel: req.user.level,
@@ -96,7 +99,7 @@ router.get('/', ah(async (req, res) => {
 
   const builtin = BUILTIN.filter((a) => a.type === type && (!level || a.level === level));
   const rows = await db.query(
-    `SELECT * FROM activities WHERE type = $1 ${level ? 'AND level = $2' : ''} ORDER BY created_at DESC, id DESC`,
+    `SELECT * FROM activities WHERE type = $1 AND ${VISIBLE} ${level ? 'AND level = $2' : ''} ORDER BY created_at DESC, id DESC`,
     level ? [type, level] : [type],
   );
   const [best, unlocked] = await Promise.all([bestScores(req.user.id), unlockedLevels(req.user)]);

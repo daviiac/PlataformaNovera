@@ -102,11 +102,16 @@
             <input id="reg-confirm" name="confirm" type="password" autocomplete="new-password" required>
             <span class="hint" id="pw-match"></span>
           </div>
+          <label class="terms-check">
+            <input type="checkbox" id="reg-terms" name="acceptTerms" required>
+            <span>Li e aceito os <a href="/termos" target="_blank" rel="noopener">Termos de uso e a Política de privacidade</a>, incluindo os <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">Termos de Serviço do YouTube</a> para os vídeos.</span>
+          </label>
           <button class="btn btn-block" type="submit" id="reg-submit" disabled>Criar conta <span class="arrow">→</span></button>
           <p class="hint center-text" id="reg-hint">Preencha todos os campos e crie uma senha forte para continuar.</p>
         </form>
 
         <p class="alert alert-error" id="auth-error" role="alert"></p>
+        <p class="auth-legal">Ao entrar ou criar conta, você concorda com os <a href="/termos">Termos de uso e a Política de privacidade</a> da Plataforma Novera e com os <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">Termos do YouTube</a>.</p>
       </div>
     </section>
   </main>

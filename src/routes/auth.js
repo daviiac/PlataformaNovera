@@ -59,6 +59,10 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
     return res.status(400).json({ error: `Senha fraca. Falta: ${missing.join('; ')}.`, code: 'WEAK_PASSWORD' });
   }
   const level = levelChoice === 'TEST' ? null : levelChoice;
+  // Aceite obrigatório dos Termos de uso e da Política de privacidade (inclui os Termos do YouTube).
+  if (req.body?.acceptTerms !== true) {
+    return res.status(400).json({ error: 'Para criar a conta, aceite os Termos de uso e a Política de privacidade.', code: 'TERMS_REQUIRED' });
+  }
 
   const exists = await db.one('SELECT 1 FROM users WHERE email = $1 OR username = $1', [email]);
   if (exists) return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
@@ -68,7 +72,7 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   let user;
   try {
     user = await db.one(
-      "INSERT INTO users (name, email, password_hash, role, level) VALUES ($1, $2, $3, 'student', $4) RETURNING *",
+      "INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at) VALUES ($1, $2, $3, 'student', $4, now()) RETURNING *",
       [name, email, passwordHash, level],
     );
   } catch (err) {

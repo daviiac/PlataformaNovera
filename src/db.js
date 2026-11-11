@@ -175,6 +175,8 @@ const MIGRATIONS = [
      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
      PRIMARY KEY (user_id, activity_key)
    )`,
+  // Quando o aluno aceitou os Termos de uso e a Política de privacidade (no cadastro).
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ',
   // Respostas já dadas, para o aluno continuar de onde parou.
   'ALTER TABLE activity_progress ADD COLUMN IF NOT EXISTS state JSONB',
   `DO $$

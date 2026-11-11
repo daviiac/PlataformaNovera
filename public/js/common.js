@@ -195,6 +195,18 @@ const Novera = (() => {
       </div>`;
     el.querySelector('#logout-btn').addEventListener('click', logout);
     setupDropdown(el.querySelector('.nav-dd'));
+    renderFooter();
+  }
+
+  /** Rodapé com os Termos de uso / Privacidade e os Termos do YouTube (exigência do YouTube). */
+  function renderFooter() {
+    if (document.querySelector('.site-foot')) return;
+    const foot = document.createElement('footer');
+    foot.className = 'site-foot';
+    foot.innerHTML = `Plataforma Novera · gratuita para alunos ·
+      <a href="/termos">Termos de uso e Privacidade</a> ·
+      Vídeos fornecidos pelo YouTube (<a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">Termos do YouTube</a>)`;
+    document.body.appendChild(foot);
   }
 
   /** Submenu do topo: abre por clique/teclado e fica dentro da tela (inclusive no celular). */

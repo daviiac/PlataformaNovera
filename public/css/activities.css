@@ -428,3 +428,27 @@
 }
 .resume-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; margin-bottom: 1rem; }
 .resume-note .link-btn { margin-left: auto; }
+
+/* ---------- Termos de uso e Privacidade ---------- */
+.legal-page { max-width: 860px; display: grid; gap: 1.2rem; }
+.legal { padding: clamp(1.2rem, 4vw, 2.4rem); line-height: 1.65; }
+.legal h2 { margin-top: 1.8rem; font-size: 1.35rem; }
+.legal h3 { margin-top: 1.2rem; font-size: 1.05rem; }
+.legal ul { padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+.legal a { color: var(--violet); overflow-wrap: anywhere; }
+.legal-toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+.legal-back { margin-top: 2rem; }
+
+/* Rodapé com os links legais (todas as páginas) */
+.site-foot { max-width: 1100px; margin: 0 auto; padding: 1.2rem 1rem 2rem; text-align: center; color: var(--dim); font-size: 0.82rem; }
+.site-foot a { color: var(--muted); }
+.auth-legal { margin-top: 1rem; text-align: center; color: var(--dim); font-size: 0.8rem; }
+.auth-legal a { color: var(--muted); }
+.terms-check { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.88rem; color: var(--muted); margin: 0.2rem 0 1rem; cursor: pointer; }
+.terms-check input { margin-top: 0.2rem; accent-color: var(--violet); }
+.terms-check a { color: var(--violet); }
+
+/* Selo "YouTube" (fonte dos vídeos e miniaturas) */
+.yt-badge { position: absolute; left: 0.5rem; bottom: 0.5rem; padding: 0.15rem 0.5rem; border-radius: 6px; background: rgba(0, 0, 0, 0.78); color: #fff; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em; pointer-events: none; }
+.yt-source { margin: 0.45rem 0 0; font-size: 0.8rem; color: var(--dim); }
+.yt-source a { color: var(--muted); }

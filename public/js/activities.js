@@ -53,7 +53,8 @@
     const best = a.best ? `<span class="tag ${a.best.score === a.best.total ? 'tag-own' : ''}">✓ ${a.best.score}/${a.best.total}</span>` : '';
     const count = a.count ? `<span class="small dim">${a.count.n} ${a.count.unit}</span>` : '';
     const visual = a.youtubeId
-      ? `<img class="act-thumb" src="${Novera.esc(Act.thumb(a.youtubeId))}" alt="" loading="lazy">`
+      // Miniatura do YouTube: o selo deixa claro que o vídeo vem do YouTube (regra do YouTube).
+      ? `<img class="act-thumb" src="${Novera.esc(Act.thumb(a.youtubeId))}" alt="" loading="lazy"><span class="yt-badge">▶ YouTube</span>`
       : `<span class="act-cover" aria-hidden="true">${a.cover || type.icon}</span>`;
     const own = a.level === user.level ? '<span class="tag tag-own">Seu nível</span>' : '';
     return `

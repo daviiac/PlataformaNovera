@@ -47,7 +47,7 @@ async function login(u, p) {
 }
 async function student(email, level) {
   const c = client();
-  assert.equal((await c('POST', '/api/auth/register', { json: { name: 'Aluno Teste', email, password: STRONG, level } })).status, 201);
+  assert.equal((await c('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Aluno Teste', email, password: STRONG, level } })).status, 201);
   return c;
 }
 

@@ -129,6 +129,14 @@ const Act = (() => {
 
   /** Cria um player do YouTube (sem cookies de rastreamento) dentro de `el`. */
   async function youtubePlayer(el, videoId, { onStateChange, controls = 1 } = {}) {
+    // Fonte do vídeo logo abaixo do player, com link para o vídeo no YouTube (regra do YouTube).
+    const box = el.closest('.video-box');
+    if (box && !box.nextElementSibling?.classList.contains('yt-source')) {
+      const src = document.createElement('p');
+      src.className = 'yt-source';
+      src.innerHTML = `Vídeo do YouTube · <a href="https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}" target="_blank" rel="noopener">assistir no YouTube</a> · <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">Termos do YouTube</a>`;
+      box.after(src);
+    }
     const YT = await loadYouTube();
     return new Promise((resolve) => {
       const p = new YT.Player(el, {

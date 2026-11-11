@@ -127,7 +127,7 @@
             <label for="act-type">Tipo</label>
             <select id="act-type">
               <option value="quiz">🎬 Quiz em vídeo</option>
-              <option value="song">🎵 Música (letra com lacunas)</option>
+              <option value="song">🎵 Música (perguntas no clipe oficial)</option>
               <option value="video_lesson">📺 Videoaula</option>
             </select>
           </div>
@@ -155,34 +155,10 @@
           <div id="q-rows"></div>
         </div>
 
-        <!-- Música -->
+        <!-- Música: perguntas durante o clipe oficial (a letra não é reproduzida) -->
         <div id="ed-song" class="mt" hidden>
           <div class="field"><label for="song-artist">Artista (opcional)</label><input id="song-artist" maxlength="120"></div>
-          <ol class="song-steps small">
-            <li>Carregue o vídeo acima e cole a letra abaixo (um verso por linha). Também aceita letra sincronizada no formato <code>[00:12.34] verso</code>.</li>
-            <li>Clique em <b>✨ Gerar lacunas</b> — o sistema escolhe as palavras conforme o nível (A1: 1 por verso · A2: 1–2 · B2: 2 mais difíceis). Ajuste à mão se quiser: a lacuna é a palavra entre colchetes, ex.: <code>I [love] you</code>.</li>
-            <li>Clique em <b>⏱ Sincronizar</b>, dê play e aperte <b>Marcar verso</b> (ou a barra de espaço) no começo de cada verso.</li>
-          </ol>
-          <div class="field">
-            <label for="song-lyrics">Letra</label>
-            <textarea id="song-lyrics" rows="12" placeholder="0:12 Every [morning] I wake up early&#10;0:18 And I [walk] along the river"></textarea>
-            <span class="hint" id="song-stats">Respeite os direitos autorais: use letras que você pode usar em aula.</span>
-          </div>
-          <div class="row-actions row-left">
-            <button type="button" class="btn btn-ghost btn-sm" id="song-auto">✨ Gerar lacunas</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="song-clear">🧹 Limpar lacunas</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="song-sync">⏱ Sincronizar com o vídeo</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="song-time">Inserir tempo atual na linha do cursor</button>
-          </div>
-          <div class="sync-panel card" id="sync-panel" hidden>
-            <p class="small dim" id="sync-count"></p>
-            <p class="sync-next" id="sync-next"></p>
-            <div class="row-actions row-left">
-              <button type="button" class="btn" id="sync-mark">Marcar verso (espaço)</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="sync-undo">↶ Desfazer</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="sync-stop">Concluir</button>
-            </div>
-          </div>
+          <p class="notice-info small">🎵 Use o <b>clipe oficial</b> (canal do artista ou da gravadora) e crie perguntas próprias sobre vocabulário, tema e expressões. <b>Não copie a letra da música</b>: ela é protegida por direitos autorais.</p>
         </div>
 
         <!-- Videoaula -->

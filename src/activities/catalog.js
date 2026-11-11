@@ -92,20 +92,17 @@ function validateQuiz(data) {
   };
 }
 
+/**
+ * Música: perguntas durante o clipe oficial, como as músicas da Novera.
+ * A letra completa NÃO é aceita — letra de música é protegida por direitos autorais.
+ */
 function validateSong(data) {
-  const raw = Array.isArray(data?.lines) ? data.lines : fail('Escreva a letra da música.');
-  if (raw.length < 1 || raw.length > 200) fail('A letra deve ter de 1 a 200 linhas.');
-  const lines = raw.map((l, i) => {
-    const text = str(l?.text, 300) || fail(`Linha ${i + 1}: vazia.`);
-    const time = l?.time === null || l?.time === undefined || l?.time === '' ? null : Number(l.time);
-    if (time !== null && (!Number.isFinite(time) || time < 0 || time > 3 * 3600)) fail(`Linha ${i + 1}: tempo inválido.`);
-    return { time: time === null ? null : Math.round(time), text };
-  });
-  const gaps = lines.reduce((n, l) => n + (l.text.match(/\[[^\]]+\]/g) || []).length, 0);
-  if (gaps < 1) fail('Marque ao menos uma lacuna com colchetes, ex.: I [love] you.');
-  if (gaps > 120) fail('Máximo de 120 lacunas por música.');
-  return { lines, artist: str(data?.artist, 120) };
+  if (data?.lines !== undefined) fail('Não é mais possível publicar a letra da música (direitos autorais). Crie perguntas que aparecem durante o clipe.');
+  return { mode: 'quiz', ...validateQuiz(data), artist: str(data?.artist, 120) };
 }
+
+/** Música antiga com a letra completa: fica oculta para os alunos (direitos autorais). */
+const isLyricsSong = (a) => a?.type === 'song' && !Array.isArray(a?.data?.questions);
 
 function validateVideoLesson(data) {
   return { summary: str(data?.summary, 4000), module: str(data?.module, 120) };
@@ -127,5 +124,5 @@ function validateAdminActivity(body) {
 }
 
 module.exports = {
-  TYPES, TYPE_KEYS, ADMIN_TYPES, BUILTIN, BUILTIN_BY_KEY, ValidationError, parseYouTubeId, validateAdminActivity,
+  TYPES, TYPE_KEYS, ADMIN_TYPES, BUILTIN, BUILTIN_BY_KEY, ValidationError, parseYouTubeId, validateAdminActivity, isLyricsSong,
 };
