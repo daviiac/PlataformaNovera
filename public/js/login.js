@@ -36,7 +36,10 @@
       window.location.replace(homeFor(user));
     } catch (err) {
       let hint = '';
-      if (form === forms.login && err.status === 401) {
+      const typed = String(form.querySelector('[name=identifier]')?.value || '');
+      if (form === forms.login && (err.status === 401 || err.status === 429) && !typed.includes('@')) {
+        hint = ' Alunos entram com o e-mail cadastrado (ex.: nome@gmail.com), não com o nome.';
+      } else if (form === forms.login && err.status === 401) {
         hint = ' Se você acabou de criar uma senha nova, apague a senha que o navegador preencheu sozinho e digite a nova.';
       } else if (form === forms.login && err.status === 429) {
         hint = ' Se esqueceu a senha, peça para sua professora redefinir: isso libera o acesso na hora.';
@@ -45,6 +48,17 @@
       button.disabled = false;
     }
   }
+
+  // Login sempre em letras minúsculas (e-mail e usuário não diferenciam maiúsculas).
+  const loginId = document.getElementById('login-identifier');
+  loginId.addEventListener('input', () => {
+    const lower = loginId.value.toLowerCase();
+    if (lower !== loginId.value) {
+      const pos = loginId.selectionStart;
+      loginId.value = lower;
+      loginId.setSelectionRange(pos, pos);
+    }
+  });
 
   forms.login.addEventListener('submit', (e) => {
     e.preventDefault();
