@@ -83,6 +83,18 @@ body {
   .star, .shooting, .rocket, .cosmos-img { animation: none !important; }
   .shooting, .cosmos .rocket { display: none; }
 }
+/* A imagem do fundo fica numa camada própria da placa de vídeo (não é redesenhada a cada quadro). */
+.cosmos-img { will-change: transform; }
+
+/* Páginas com vídeo do YouTube: o fundo animado + o desfoque da barra do topo, redesenhados
+   junto com o vídeo, faziam a tela piscar em vários computadores. Aqui o fundo fica parado. */
+body.has-video .cosmos *,
+body.has-video .cosmos::after { animation: none !important; }
+body.has-video .cosmos .shooting,
+body.has-video .cosmos .rocket { display: none; }
+body.has-video .cosmos-img { will-change: auto; transform: scale(1.04); }
+body.has-video .topbar-inner,
+body.has-video .nav-menu { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(26, 16, 41); }
 [hidden] { display: none !important; }
 a { color: var(--violet); }
 h1, h2, h3 { line-height: 1.15; margin: 0 0 0.45em; font-weight: 600; letter-spacing: -0.04em; }

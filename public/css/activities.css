@@ -272,6 +272,8 @@
 /* Vídeo (YouTube) */
 .video-box { position: relative; aspect-ratio: 16 / 9; width: 100%; min-height: 200px; /* regra do YouTube: player ≥ 200×200 */ border-radius: var(--radius); overflow: hidden; background: #000; border: 1px solid var(--line); box-shadow: var(--shadow); }
 .video-box iframe, .video-box > div:first-child { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* Camada própria para o vídeo: o recorte dos cantos arredondados não força redesenhar a página. */
+.video-box { isolation: isolate; transform: translateZ(0); }
 /* Pergunta do quiz em vídeo: fica abaixo do player (nada pode cobrir o player do YouTube). */
 .vq-overlay { margin-top: 0.9rem; animation: vq-in .25s ease-out; }
 @keyframes vq-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

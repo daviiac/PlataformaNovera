@@ -129,6 +129,8 @@ const Act = (() => {
 
   /** Cria um player do YouTube (sem cookies de rastreamento) dentro de `el`. */
   async function youtubePlayer(el, videoId, { onStateChange, controls = 1 } = {}) {
+    // Página com vídeo: fundo parado e barra do topo sem desfoque (evita a tela piscar).
+    document.body.classList.add('has-video');
     // Fonte do vídeo logo abaixo do player, com link para o vídeo no YouTube (regra do YouTube).
     const box = el.closest('.video-box');
     if (box && !box.nextElementSibling?.classList.contains('yt-source')) {
