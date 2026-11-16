@@ -214,6 +214,17 @@ test('Controle Professor(a): acertos e erros por aluno e por categoria', async (
   assert.ok(listen.some((r) => r.title === 'At the Bakery' && r.hits === 4 && r.misses === 2));
   assert.ok(det.data.attempts.some((r) => r.category === 'placement'));
   assert.equal((await t('GET', '/api/teacher/students/999999')).status, 404);
+
+  // Detalhe por atividade: quais atividades da categoria e quantas vezes cada uma.
+  assert.equal(duda.categories.listen.items.length, 2, '2 atividades diferentes de Listening');
+  await s('POST', '/api/activities/b-listen-at-the-bakery/attempts', { json: { score: 5, total: 6 } });
+  const ov2 = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === duda.id);
+  const bakery = ov2.categories.listen.items.find((i) => i.title === 'At the Bakery');
+  assert.deepEqual({ a: bakery.attempts, best: bakery.best, total: bakery.total }, { a: 2, best: 5, total: 6 });
+  assert.equal(ov2.categories.listen.items.find((i) => i.title !== 'At the Bakery').attempts, 1);
+  assert.equal(ov2.categories.listen.attempts, 3);
+  const det2 = (await t('GET', `/api/teacher/students/${duda.id}`)).data;
+  assert.equal(det2.attempts.filter((r) => r.key === 'b-listen-at-the-bakery').length, 2, 'cada vez aparece separada');
 });
 
 test('migração: banco antigo passa a aceitar o perfil professor', async () => {

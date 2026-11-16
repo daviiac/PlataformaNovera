@@ -67,7 +67,8 @@ router.get('/overview', ah(async (req, res) => {
       WHERE u.role = 'student' ORDER BY u.name, u.id`),
     db.query(`
       SELECT user_id, activity_key, COUNT(*)::int AS attempts, SUM(score)::int AS hits,
-             SUM(total - score)::int AS misses, MAX(created_at) AS last_at
+             SUM(total - score)::int AS misses, MAX(created_at) AS last_at,
+             MAX(score)::int AS best, MAX(total)::int AS total
       FROM activity_attempts GROUP BY user_id, activity_key
     `),
     db.query(`
@@ -92,12 +93,19 @@ router.get('/overview', ah(async (req, res) => {
     if (!u.lastAt || p.updated_at > u.lastAt) u.lastAt = p.updated_at;
   }
 
-  const bump = (u, cat, g) => {
-    const c = u.categories[cat] || (u.categories[cat] = { attempts: 0, hits: 0, misses: 0, activities: 0, lastAt: null });
+  const bump = (u, cat, g, info) => {
+    const c = u.categories[cat] || (u.categories[cat] = { attempts: 0, hits: 0, misses: 0, activities: 0, lastAt: null, items: [] });
     c.attempts += g.attempts;
     c.hits += g.hits;
     c.misses += g.misses;
     c.activities += 1;
+    // Cada atividade diferente da categoria: quantas vezes foi feita e o melhor resultado.
+    if (info) {
+      c.items.push({
+        title: info.title, level: info.level, attempts: g.attempts, hits: g.hits, misses: g.misses,
+        best: g.best, total: g.total, lastAt: g.last_at,
+      });
+    }
     if (!c.lastAt || g.last_at > c.lastAt) c.lastAt = g.last_at;
     if (!u.lastAt || g.last_at > u.lastAt) u.lastAt = g.last_at;
   };
@@ -111,7 +119,7 @@ router.get('/overview', ah(async (req, res) => {
       if (!u.lastAt || g.last_at > u.lastAt) u.lastAt = g.last_at;
       continue;
     }
-    bump(u, info.type, g);
+    bump(u, info.type, g, info);
     u.hits += g.hits;
     u.misses += g.misses;
     u.attempts += g.attempts;
@@ -142,6 +150,7 @@ router.get('/students/:id', ah(async (req, res) => {
   const rows = attempts.map((a) => {
     const info = index.get(a.activity_key) || { type: null, title: '(atividade removida)', level: null };
     return {
+      key: a.activity_key,
       category: info.type,
       title: info.title,
       level: info.level,
@@ -153,7 +162,7 @@ router.get('/students/:id', ah(async (req, res) => {
     };
   });
   for (const p of placements) {
-    rows.push({ category: 'placement', title: `Nivelamento → ${p.level}`, level: p.level, hits: p.score, misses: p.max_score - p.score, total: p.max_score, scored: true, points: true, at: p.created_at });
+    rows.push({ key: 'placement', category: 'placement', title: `Nivelamento → ${p.level}`, level: p.level, hits: p.score, misses: p.max_score - p.score, total: p.max_score, scored: true, points: true, at: p.created_at });
   }
   rows.sort((a, b) => new Date(b.at) - new Date(a.at));
 

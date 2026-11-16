@@ -61,14 +61,24 @@
   }
 
   // ------------------------------------------------------------ lista
+  const vezes = (n) => `${n} ${n === 1 ? 'vez' : 'vezes'}`;
+  const atividades = (n) => `${n} ${n === 1 ? 'atividade' : 'atividades'}`;
+
   function chip(c, d) {
     const p = pct(d.hits, d.misses);
     const unit = c.key === 'placement' ? 'pts' : '';
+    const items = (d.items || []).slice().sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
+    // Ex.: "58% · 2 atividades · 3 vezes" e, embaixo, cada atividade com quantas vezes foi feita.
     return `
       <div class="t-chip">
         <span class="t-chip-name">${c.icon} ${esc(c.label)}</span>
         <span class="t-chip-nums"><span class="t-hit">✓ ${d.hits}${unit}</span><span class="t-miss">✗ ${d.misses}${unit}</span></span>
-        <span class="t-chip-meta"><span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span> · ${d.attempts} ${d.attempts === 1 ? 'vez' : 'vezes'}</span>
+        <span class="t-chip-meta"><span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span>${items.length ? ` · ${atividades(items.length)}` : ''} · feito ${vezes(d.attempts)}</span>
+        ${items.length ? `<ul class="t-chip-items">${items.map((i) => `
+          <li title="Acertos somando todas as vezes: ✓ ${i.hits} · ✗ ${i.misses}">
+            <span class="t-chip-act">${esc(i.title)}${i.level ? ` <span class="dim">(${esc(i.level)})</span>` : ''}</span>
+            <span class="t-chip-act-n">${vezes(i.attempts)} · melhor ${i.best}/${i.total}</span>
+          </li>`).join('')}</ul>` : ''}
       </div>`;
   }
 
@@ -405,23 +415,42 @@
       const rs = rows.filter((r) => r.category === c.key);
       const h = rs.reduce((n, r) => n + r.hits, 0);
       const m = rs.reduce((n, r) => n + r.misses, 0);
+      // Agrupa por atividade (a mais recente primeiro) e numera as tentativas: 1ª vez, 2ª vez…
+      const byAct = new Map();
+      for (const r of rs) {
+        const k = r.key || r.title;
+        if (!byAct.has(k)) byAct.set(k, []);
+        byAct.get(k).push(r);
+      }
+      const unit = c.key === 'placement' ? ' pts' : '';
       return `
         <section class="t-group">
-          <h3>${c.icon} ${esc(c.label)} <span class="small dim">· ✓ ${h} · ✗ ${m} · ${pct(h, m)}%</span></h3>
-          <div class="table-wrap"><table>
-            <thead><tr><th>Atividade</th><th>Nível</th><th>Acertos</th><th>Erros</th><th>Nota</th><th>Data</th></tr></thead>
-            <tbody>${rs.map((r) => {
-              const p = pct(r.hits, r.misses);
-              return `<tr>
-                <td>${esc(r.title)}</td>
-                <td>${r.level ? `<span class="level-badge level-${esc(r.level)}">${esc(r.level)}</span>` : '—'}</td>
-                <td class="t-hit">${r.hits}${r.points ? ' pts' : ''}</td>
-                <td class="t-miss">${r.misses}${r.points ? ' pts' : ''}</td>
-                <td><span class="t-pct ${pctClass(p)}">${p}%</span></td>
-                <td class="small dim">${dateTime(r.at)}</td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table></div>
+          <h3>${c.icon} ${esc(c.label)} <span class="small dim">· ${c.key === 'placement' ? '' : `${atividades(byAct.size)} · `}feito ${vezes(rs.length)} · ✓ ${h} · ✗ ${m} · ${pct(h, m)}%</span></h3>
+          ${[...byAct.values()].map((list) => {
+            const first = list[0];
+            const ah = list.reduce((n, r) => n + r.hits, 0);
+            const am = list.reduce((n, r) => n + r.misses, 0);
+            return `
+            <div class="t-act">
+              <p class="t-act-head"><b>${esc(c.key === 'placement' ? 'Teste de nivelamento' : first.title)}</b>
+                ${c.key !== 'placement' && first.level ? `<span class="level-badge level-${esc(first.level)}">${esc(first.level)}</span>` : ''}
+                <span class="small dim">· feita ${vezes(list.length)} · ✓ ${ah} · ✗ ${am} · ${pct(ah, am)}%</span></p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Vez</th>${c.key === 'placement' ? '<th>Resultado</th>' : ''}<th>Acertos</th><th>Erros</th><th>Nota</th><th>Data</th></tr></thead>
+                <tbody>${list.map((r, i) => {
+                  const p = pct(r.hits, r.misses);
+                  return `<tr>
+                    <td><b>${list.length - i}ª</b></td>
+                    ${c.key === 'placement' ? `<td>${esc(r.title)}</td>` : ''}
+                    <td class="t-hit">${r.hits}${unit} <span class="dim">de ${r.total}</span></td>
+                    <td class="t-miss">${r.misses}${unit}</td>
+                    <td><span class="t-pct ${pctClass(p)}">${p}%</span></td>
+                    <td class="small dim">${dateTime(r.at)}</td>
+                  </tr>`;
+                }).join('')}</tbody>
+              </table></div>
+            </div>`;
+          }).join('')}
         </section>`;
     }).join('');
   }

@@ -20,11 +20,17 @@
 .t-pct.good, strong.good { color: var(--success); }
 .t-pct.mid, strong.mid { color: var(--warn); }
 .t-pct.low, strong.low { color: var(--danger); }
-.t-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
+.t-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
 .t-chip { padding: 0.6rem 0.75rem; border-radius: 12px; border: 1px solid var(--line); background: rgba(14, 7, 24, 0.4); display: grid; gap: 0.2rem; }
 .t-chip-name { font-size: 0.85rem; color: var(--muted); }
 .t-chip-nums { display: flex; gap: 0.8rem; font-weight: 600; }
 .t-chip-meta { font-size: 0.78rem; color: var(--dim); }
+.t-chip-items { list-style: none; margin: 0.35rem 0 0; padding: 0.35rem 0 0; border-top: 1px dashed var(--line); display: grid; gap: 0.3rem; font-size: 0.78rem; }
+.t-chip-items li { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.t-chip-act { color: var(--muted); overflow-wrap: anywhere; }
+.t-chip-act-n { color: var(--dim); white-space: nowrap; }
+.t-act { margin: 0 0 0.9rem; }
+.t-act-head { margin: 0 0 0.35rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .t-hit { color: var(--success); }
 .t-miss { color: var(--danger); }
 .t-empty { margin: 0.8rem 0 0; }
