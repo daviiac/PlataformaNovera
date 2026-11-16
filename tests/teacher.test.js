@@ -66,7 +66,7 @@ after(async () => {
 test('professora redefine a senha: senha provisória e troca obrigatória no próximo login', async () => {
   const email = 'esqueci@exemplo.com';
   const s = client();
-  assert.equal((await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Clara Nunes', email, password: STRONG, level: 'A1' } })).status, 201);
+  assert.equal((await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Clara Nunes', email, password: STRONG, level: 'A1' } })).status, 201);
   const sid = (await s('GET', '/api/auth/me')).data.user.id;
 
   // Aluno não pode redefinir senha de ninguém.
@@ -118,17 +118,20 @@ test('política de senha: aponta o que falta e aceita senha forte', () => {
 });
 
 test('cadastro: todos os campos obrigatórios, nível e senha forte', async () => {
-  const base = { name: 'Bruna Lima', email: 'bruna@exemplo.com', password: STRONG, level: 'A2', acceptTerms: true };
+  const base = { name: 'Bruna Lima', email: 'bruna@exemplo.com', password: STRONG, level: 'A2', acceptTerms: true, guardianConsent: true };
   const noTerms = await client()('POST', '/api/auth/register', { json: { ...base, acceptTerms: false } });
   assert.equal(noTerms.status, 400, 'precisa aceitar os termos');
   assert.equal(noTerms.data.code, 'TERMS_REQUIRED');
-  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  ...base, level: '' } })).status, 400);
-  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  ...base, level: 'C1' } })).status, 400);
-  const weak = await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  ...base, password: 'bruna2026' } });
+  const noConsent = await client()('POST', '/api/auth/register', { json: { ...base, guardianConsent: false } });
+  assert.equal(noConsent.status, 400, 'precisa confirmar idade ou autorização do responsável');
+  assert.equal(noConsent.data.code, 'GUARDIAN_CONSENT_REQUIRED');
+  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, level: '' } })).status, 400);
+  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, level: 'C1' } })).status, 400);
+  const weak = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, password: 'bruna2026' } });
   assert.equal(weak.status, 400);
   assert.equal(weak.data.code, 'WEAK_PASSWORD');
   assert.match(weak.data.error, /maiúscula/);
-  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  ...base, name: '' } })).status, 400);
+  assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, name: '' } })).status, 400);
 
   // Nível informado no cadastro já libera trilhas e atividades.
   const c = client();
@@ -136,19 +139,23 @@ test('cadastro: todos os campos obrigatórios, nível e senha forte', async () =
   assert.equal(ok.status, 201);
   assert.equal(ok.data.user.level, 'A2');
   assert.equal((await c('GET', '/api/tracks/A2')).status, 200);
+  const saved = await db.one('SELECT terms_accepted_at, guardian_consent_at FROM users WHERE email = $1', [base.email]);
+  assert.ok(saved.terms_accepted_at && saved.guardian_consent_at, 'grava a data do aceite e da autorização');
 
   // "Não sei" → sem nível, vai para o nivelamento.
   const d = client();
-  const t = await d('POST', '/api/auth/register', { json: { acceptTerms: true,  ...base, email: 'nao-sei@exemplo.com', level: 'TEST' } });
+  const t = await d('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, email: 'nao-sei@exemplo.com', level: 'TEST' } });
   assert.equal(t.data.user.level, null);
   assert.equal((await d('GET', '/api/tracks/A1')).data.code, 'PLACEMENT_REQUIRED');
+  // Este teste faz várias tentativas de propósito; zera o limite de cadastros para os próximos.
+  await db.query('DELETE FROM auth_attempts');
 });
 
 test('Controle Professor(a): só o login do professor acessa', async () => {
   assert.equal((await client()('GET', '/api/teacher/overview')).status, 401);
 
   const s = client();
-  await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Caio Rocha', email: 'caio@exemplo.com', password: STRONG, level: 'A1' } });
+  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Rocha', email: 'caio@exemplo.com', password: STRONG, level: 'A1' } });
   assert.equal((await s('GET', '/api/teacher/overview')).status, 403);
   assert.equal((await s('GET', '/professor')).status, 302);
   assert.equal((await s('GET', '/professor/professor.js')).status, 302);
@@ -174,7 +181,7 @@ test('Controle Professor(a): só o login do professor acessa', async () => {
 
 test('Controle Professor(a): acertos e erros por aluno e por categoria', async () => {
   const s = client();
-  await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Duda Alves', email: 'duda@exemplo.com', password: STRONG, level: 'TEST' } });
+  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Duda Alves', email: 'duda@exemplo.com', password: STRONG, level: 'TEST' } });
   // Nivelamento: acerta tudo de A1, erra o resto.
   const answers = Object.fromEntries(QUESTIONS.map((q) => [q.id, q.band === 'A1' ? q.answer : (q.answer + 1) % q.options.length]));
   await s('POST', '/api/placement/submit', { json: { answers } });
@@ -227,7 +234,7 @@ test('migração: banco antigo passa a aceitar o perfil professor', async () => 
 
 test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', async () => {
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const sid = reg.data.user.id;
   await s('POST', '/api/activities/b-listen-at-the-bakery/attempts', { json: { score: 3, total: 6 } });
@@ -275,13 +282,13 @@ test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', as
   assert.equal((await db.query('SELECT 1 FROM activity_attempts WHERE user_id = $1', [sid])).length, 0);
   assert.equal((await db.query('SELECT 1 FROM level_changes WHERE user_id = $1', [sid])).length, 0);
   assert.equal((await t('DELETE', `/api/teacher/students/${sid}`)).status, 404);
-  const again = await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  const again = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
   assert.equal(again.status, 201);
 });
 
 test('senha provisória: aceita espaço ou quebra de linha copiados junto; senha normal continua exata', async () => {
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Caio Prado', email: 'caio.temp@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Prado', email: 'caio.temp@exemplo.com', password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const anon = () => client();
   // Senha normal: espaço a mais continua sendo senha errada.
@@ -305,7 +312,7 @@ test('senha provisória: aceita espaço ou quebra de linha copiados junto; senha
 test('redefinir senha libera o bloqueio por tentativas; depois da troca entra só com a senha nova', async () => {
   const email = 'rita.bloqueio@exemplo.com';
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Rita Lopes', email, password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Rita Lopes', email, password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const tryLogin = (password) => client()('POST', '/api/auth/login', { json: { identifier: email, password } });
 
@@ -334,7 +341,7 @@ test('redefinir senha libera o bloqueio por tentativas; depois da troca entra s�
 
 test('professor(a) define a senha escolhida para o aluno', async () => {
   const email = 'lara.definir@exemplo.com';
-  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Lara Mendes', email, password: STRONG, level: 'A1' } });
+  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Lara Mendes', email, password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const sid = reg.data.user.id;
   const t = await login(TEACHER.user, TEACHER.pass);
@@ -367,7 +374,7 @@ test('professor(a) define a senha escolhida para o aluno', async () => {
 test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail continua valendo)', async () => {
   await db.query('DELETE FROM auth_attempts'); // todos os testes entram pelo mesmo IP
   const email = 'nina.login@exemplo.com';
-  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Nina Rocha', email, password: STRONG, level: 'A1' } });
+  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Nina Rocha', email, password: STRONG, level: 'A1' } });
   const sid = reg.data.user.id;
   const t = await login(TEACHER.user, TEACHER.pass);
   const setPw = (json) => t('POST', `/api/teacher/students/${sid}/set-password`, { json });
@@ -389,7 +396,7 @@ test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail
   assert.equal(ov.username, 'ninar');
 
   // Outro aluno não pode usar o mesmo login.
-  const other = await client()('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Otto Lima', email: 'otto.login@exemplo.com', password: STRONG, level: 'A1' } });
+  const other = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Otto Lima', email: 'otto.login@exemplo.com', password: STRONG, level: 'A1' } });
   const dup = await t('POST', `/api/teacher/students/${other.data.user.id}/set-password`, { json: { password: 'Morro#2026q', username: 'ninar' } });
   assert.equal(dup.data.code, 'USERNAME_TAKEN');
   // Ninguém se cadastra com e-mail igual a um login existente (não há como, login não tem @) e o login some se ficar vazio.
@@ -400,7 +407,7 @@ test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail
 test('atividade não terminada: professora vê o % e o aluno vê como pendente; some ao concluir', async () => {
   await db.query('DELETE FROM auth_attempts');
   const st = client();
-  const reg = await st('POST', '/api/auth/register', { json: { acceptTerms: true,  name: 'Pia Torres', email: 'pia.pendente@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await st('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Pia Torres', email: 'pia.pendente@exemplo.com', password: STRONG, level: 'A1' } });
   const sid = reg.data.user.id;
   const key = 'b-order-introductions';
   const put = (json) => st('PUT', `/api/activities/${key}/progress`, { json });

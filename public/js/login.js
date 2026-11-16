@@ -71,7 +71,7 @@
   // ---------- Cadastro: todos os campos obrigatórios + senha forte com dicas ao vivo ----------
   const $ = (id) => document.getElementById(id);
   const reg = {
-    name: $('reg-name'), email: $('reg-email'), level: $('reg-level'), password: $('reg-password'), confirm: $('reg-confirm'), terms: $('reg-terms'),
+    name: $('reg-name'), email: $('reg-email'), level: $('reg-level'), password: $('reg-password'), confirm: $('reg-confirm'), terms: $('reg-terms'), guardian: $('reg-guardian'),
   };
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -103,6 +103,7 @@
     if (!result.ok) missing.push('senha forte');
     if (!match) missing.push('confirmação da senha');
     if (!reg.terms.checked) missing.push('aceitar os termos');
+    if (!reg.guardian.checked) missing.push('confirmar a idade ou a autorização do responsável');
     $('reg-submit').disabled = missing.length > 0;
     $('reg-hint').textContent = missing.length ? `Falta: ${missing.join(', ')}.` : 'Tudo certo! Pode criar sua conta.';
     return { ok: missing.length === 0, missing };
@@ -118,7 +119,7 @@
     submit(forms.register, ({ name, email, password, level }) => {
       const state = evaluate();
       if (!state.ok) throw new Error(`Falta: ${state.missing.join(', ')}.`);
-      return api('/api/auth/register', { method: 'POST', body: { name, email, password, level, acceptTerms: reg.terms.checked } });
+      return api('/api/auth/register', { method: 'POST', body: { name, email, password, level, acceptTerms: reg.terms.checked, guardianConsent: reg.guardian.checked } });
     });
   });
 })();

@@ -63,6 +63,10 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   if (req.body?.acceptTerms !== true) {
     return res.status(400).json({ error: 'Para criar a conta, aceite os Termos de uso e a Política de privacidade.', code: 'TERMS_REQUIRED' });
   }
+  // Maior de 18 anos ou cadastro autorizado e acompanhado pelo responsável (LGPD art. 14).
+  if (req.body?.guardianConsent !== true) {
+    return res.status(400).json({ error: 'Para criar a conta, confirme que tem 18 anos ou mais ou que seu responsável autorizou o cadastro.', code: 'GUARDIAN_CONSENT_REQUIRED' });
+  }
 
   const exists = await db.one('SELECT 1 FROM users WHERE email = $1 OR username = $1', [email]);
   if (exists) return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
@@ -72,7 +76,7 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   let user;
   try {
     user = await db.one(
-      "INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at) VALUES ($1, $2, $3, 'student', $4, now()) RETURNING *",
+      "INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at, guardian_consent_at) VALUES ($1, $2, $3, 'student', $4, now(), now()) RETURNING *",
       [name, email, passwordHash, level],
     );
   } catch (err) {

@@ -177,6 +177,8 @@ const MIGRATIONS = [
    )`,
   // Quando o aluno aceitou os Termos de uso e a Política de privacidade (no cadastro).
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ',
+  // Quando confirmou "tenho 18 anos ou mais, ou meu responsável autorizou este cadastro" (LGPD art. 14).
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS guardian_consent_at TIMESTAMPTZ',
   // Respostas já dadas, para o aluno continuar de onde parou.
   'ALTER TABLE activity_progress ADD COLUMN IF NOT EXISTS state JSONB',
   `DO $$
