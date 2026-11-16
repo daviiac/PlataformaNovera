@@ -11,6 +11,7 @@ const vm = require('node:vm');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'novera-act-'));
 process.env.PGLITE_DIR = 'memory';
 process.env.UPLOAD_DIR = path.join(tmp, 'uploads');
+process.env.YT_SAFETY_CHECK = 'off'; // testes sem internet; a análise da página é testada à parte
 for (const k of ['DATABASE_URL', 'POSTGRES_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY', 'VERCEL']) delete process.env[k];
 
 const app = require('../src/app');
@@ -230,4 +231,24 @@ test('correção no navegador: contrações, pontuação e maiúsculas', () => {
   assert.ok(!same('I go to bed at 10', 'I go to bed at eleven'));
   assert.ok(!same('She work here', 'She works here'));
   assert.ok(!same('I am a teacher', 'I am a student'));
+});
+
+test('vídeo 18+ ou impróprio para crianças é bloqueado no cadastro', () => {
+  const { analyzeWatchPage } = require('../src/activities/youtube-safety');
+  const page = (pr) => `<script>var ytInitialPlayerResponse = ${JSON.stringify(pr)};</script>`;
+  const fam = (v) => ({ microformat: { playerMicroformatRenderer: { isFamilySafe: v } } });
+  assert.equal(analyzeWatchPage(page({ playabilityStatus: { status: 'OK', playableInEmbed: true }, ...fam(true) })).ok, true);
+  assert.equal(analyzeWatchPage(page({ playabilityStatus: { status: 'LOGIN_REQUIRED', reason: 'Sign in to confirm your age' } })).ok, false);
+  assert.match(analyzeWatchPage(page({ playabilityStatus: { status: 'LOGIN_REQUIRED', reason: 'Sign in to confirm your age' } })).reason, /idade/);
+  assert.equal(analyzeWatchPage(page({ playabilityStatus: { status: 'OK', playableInEmbed: true }, ...fam(false) })).ok, false);
+  assert.equal(analyzeWatchPage(page({ playabilityStatus: { status: 'OK', playableInEmbed: false }, ...fam(true) })).ok, false);
+  assert.equal(analyzeWatchPage(page({ playabilityStatus: { status: 'ERROR', reason: 'Video unavailable' } })).ok, false);
+  assert.equal(analyzeWatchPage('<html>sem dados</html>').ok, null);
+});
+
+test('músicas: só clipes oficiais e sem os vídeos retirados por conteúdo adulto', () => {
+  const banned = ['G7KNmW9a75Y', 'suAR1PYFNYA', 'b1kbLwvqugk'];
+  const songs = BUILTIN.filter((a) => a.type === 'song');
+  assert.equal(songs.length, 30);
+  for (const s of songs) assert.ok(!banned.includes(s.data.youtubeId), s.slug);
 });

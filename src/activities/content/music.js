@@ -51,13 +51,13 @@ const A1 = [
       q('"Barefoot" means…', ['Without shoes', 'With a hat', 'In a car']),
       q('How does the singer feel about his partner?', ['He is in love', 'He is bored', 'He is scared']),
     ]),
-  song('flowers', 'A1', 'Flowers', 'Miley Cyrus', 'G7KNmW9a75Y', 202,
-    'Uma música sobre amor-próprio depois de um término. Sentimentos e expressões do dia a dia.', [
-      q('What is the song about?', ['Loving yourself after a breakup', 'Planting a garden', 'Going back to school']),
-      q('Flowers are…', ['Plants with colorful petals', 'Small animals', 'Cold drinks']),
-      q('In the song, who buys flowers for the singer?', ['She buys them for herself', 'Her mother', 'Her teacher']),
-      q('Complete: "She is happy ___ her own."', ['on', 'in', 'at']),
-      q('How does she feel at the end of the song?', ['Strong and independent', 'Sad and lonely', 'Angry with her friends']),
+  song('best-day-of-my-life', 'A1', 'Best Day of My Life', 'American Authors', 'Y66j_BUCBMY', 220,
+    'Uma música muito animada sobre um dia perfeito. Sentimentos, sonhos e o futuro com "going to".', [
+      q('What is the song about?', ['A very happy day', 'A sad goodbye', 'A day at the hospital']),
+      q('"The best day" means…', ['The day that is better than all the others', 'The worst day', 'A normal day']),
+      q('The mood of the song is…', ['Happy and full of energy', 'Sad and slow', 'Scary']),
+      q('Complete: "This is ___ to be a great day."', ['going', 'go', 'goes']),
+      q('"A dream" is…', ['Something you see when you sleep, or a big wish', 'A kind of food', 'A school subject']),
     ]),
   song('die-with-a-smile', 'A1', 'Die With A Smile', 'Lady Gaga & Bruno Mars', 'kPa7bsKwL-c', 253,
     'Dueto romântico: amor, futuro e o vocabulário de sentimentos.', [
@@ -150,13 +150,13 @@ const A2 = [
       q('The style of the song is…', ['Disco pop, happy and colorful', 'Heavy metal', 'Opera']),
       q('"Shining" means…', ['Giving off a bright light', 'Very cold', 'Hiding']),
     ]),
-  song('houdini', 'A2', 'Houdini', 'Dua Lipa', 'suAR1PYFNYA', 189,
-    'Pop dançante sobre "desaparecer". Verbos e condições.', [
-      q('Houdini was a famous…', ['Magician and escape artist', 'Football player', 'Painter']),
-      q('In the song, she says she will…', ['Disappear if the person doesn\'t show they are worth it', 'Marry the person tomorrow', 'Move to the beach']),
-      q('"To prove" means…', ['To show that something is true', 'To hide something', 'To buy something']),
-      q('In the song, Dua Lipa is…', ['Confident and in control', 'Scared and confused', 'Bored']),
-      q('This is a ___ song.', ['Dance-pop', 'Country', 'Opera']),
+  song('on-top-of-the-world', 'A2', 'On Top of the World', 'Imagine Dragons', 'w5tWYmIOWGk', 242,
+    'A alegria de realizar um sonho depois de muito esforço. Expressões, passado e sentimentos.', [
+      q('What is the song about?', ['Feeling great after reaching a dream', 'Climbing a real mountain in the snow', 'Losing a game']),
+      q('"On top of the world" means…', ['Extremely happy and successful', 'Very high up in an airplane', 'Very tired']),
+      q('The singer says he has waited a long time to…', ['Smile and feel happy', 'Buy a new car', 'Go to sleep']),
+      q('Complete: "I have ___ dreaming of this since I was a child."', ['been', 'be', 'being']),
+      q('The mood of the song is…', ['Positive and celebratory', 'Angry', 'Very sad']),
     ]),
   song('what-makes-you-beautiful', 'A2', 'What Makes You Beautiful', 'One Direction', 'QJO3ROT-A4E', 206,
     'Um clássico do pop. Adjetivos, elogios e autoconfiança.', [
@@ -273,13 +273,13 @@ const B2 = [
       q('Elsa\'s powers are related to…', ['Ice and snow', 'Fire', 'Water']),
       q('"Conceal" means…', ['To hide', 'To show', 'To freeze']),
     ]),
-  song('anti-hero', 'B2', 'Anti-Hero', 'Taylor Swift', 'b1kbLwvqugk', 310,
-    'Autocrítica com humor. Vocabulário de personalidade e insegurança.', [
-      q('An "anti-hero" is…', ['A main character who lacks typical heroic qualities', 'A villain from a comic', 'A superhero\'s assistant']),
-      q('In the song, the singer…', ['Criticizes herself and admits her flaws', 'Celebrates a victory', 'Describes a vacation']),
-      q('The music video shows…', ['Different versions of Taylor interacting with each other', 'A football match', 'A cooking show']),
-      q('"Insecurity" means…', ['A lack of confidence', 'A security guard', 'A strong feeling of joy']),
-      q('This song is from the album…', ['Midnights', 'Red', 'Reputation']),
+  song('fight-song', 'B2', 'Fight Song', 'Rachel Platten', 'xo1VInw-SKc', 205,
+    'Encontrar força interior e não desistir. Metáforas, phrasal verbs e vocabulário de superação.', [
+      q('In this song, a "fight song" is…', ['A song that gives you strength to keep going', 'A song about boxing', 'A song played during a war']),
+      q('The main message is…', ['Believe in yourself, even when others doubt you', 'Give up when things get hard', 'Always follow the crowd']),
+      q('"To take back your life" means…', ['To regain control of your own life', 'To return something to a shop', 'To move back to your old house']),
+      q('"Resilience" means…', ['The ability to recover from difficulties', 'A fear of the dark', 'A type of musical instrument']),
+      q('The singer compares her voice to…', ['Something small that can still make a big impact', 'A loud alarm that annoys people', 'A broken radio']),
     ]),
   song('viva-la-vida', 'B2', 'Viva La Vida', 'Coldplay', 'dvgZkm1xWPE', 243,
     'Um rei que perdeu o poder. Narrativa no passado e metáforas históricas.', [

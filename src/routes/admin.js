@@ -167,6 +167,10 @@ router.get('/activities', ah(async (req, res) => {
 router.post('/activities', ah(async (req, res) => {
   const { validateAdminActivity } = require('../activities/catalog');
   const a = validateAdminActivity(req.body);
+  // Nada de vídeo 18+ ou impróprio para crianças na plataforma.
+  const safety = await require('../activities/youtube-safety').checkVideo(a.data.youtubeId);
+  if (safety.ok === false) return res.status(400).json({ error: safety.reason });
+  if (safety.ok === null) console.warn('[youtube-safety] não verificado:', a.data.youtubeId, safety.reason);
   const row = await db.one(
     'INSERT INTO activities (type, level, title, description, data, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
     [a.type, a.level, a.title, a.description, JSON.stringify(a.data), req.user.id],
