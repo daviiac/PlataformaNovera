@@ -64,28 +64,60 @@
   const vezes = (n) => `${n} ${n === 1 ? 'vez' : 'vezes'}`;
   const atividades = (n) => `${n} ${n === 1 ? 'atividade' : 'atividades'}`;
 
-  function chip(c, d) {
+  const shortDate = (v) => (v ? new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '');
+
+  /**
+   * Quadro de uma categoria, direto e detalhado: o total no topo e, embaixo, cada atividade
+   * com cada vez que o aluno terminou (1ª vez: 3 de 6…) e, se estiver fazendo de novo agora,
+   * a vez em andamento (⏳), tudo no mesmo lugar.
+   */
+  function chip(c, d, pend = []) {
+    d = d || { hits: 0, misses: 0, attempts: 0, items: [] };
     const p = pct(d.hits, d.misses);
-    const unit = c.key === 'placement' ? 'pts' : '';
-    const items = (d.items || []).slice().sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
-    // Ex.: "58% · 2 atividades · 3 vezes" e, embaixo, cada atividade com quantas vezes foi feita.
+    if (c.key === 'placement') {
+      return `
+        <div class="t-chip">
+          <div class="t-chip-top"><span class="t-chip-name">${c.icon} ${esc(c.label)}</span><span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span></div>
+          <span class="t-chip-sum">Fez ${vezes(d.attempts)} · <span class="t-hit">✓ ${d.hits} pts</span> · <span class="t-miss">✗ ${d.misses} pts</span></span>
+        </div>`;
+    }
+    // Junta as atividades terminadas com as que estão em andamento.
+    const acts = new Map();
+    for (const i of d.items || []) acts.set(i.key, { ...i, pending: null });
+    for (const pe of pend) {
+      const a = acts.get(pe.key) || { key: pe.key, title: pe.title, level: pe.level, runs: [], attempts: 0, lastAt: pe.at };
+      a.pending = pe;
+      if (new Date(pe.at) > new Date(a.lastAt)) a.lastAt = pe.at;
+      acts.set(pe.key, a);
+    }
+    const list = [...acts.values()].sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
+    const done = d.attempts;
+    const going = pend.length;
+    const summary = [
+      done ? `Terminou ${vezes(done)}` : 'Ainda não terminou nenhuma',
+      going ? `<span class="t-warn">${going} em andamento</span>` : '',
+    ].filter(Boolean).join(' · ');
     return `
       <div class="t-chip">
-        <span class="t-chip-name">${c.icon} ${esc(c.label)}</span>
-        <span class="t-chip-nums"><span class="t-hit">✓ ${d.hits}${unit}</span><span class="t-miss">✗ ${d.misses}${unit}</span></span>
-        <span class="t-chip-meta"><span class="t-pct ${pctClass(p)}">${p === null ? '—' : `${p}%`}</span>${items.length ? ` · ${atividades(items.length)}` : ''} · feito ${vezes(d.attempts)}</span>
-        ${items.length ? `<ul class="t-chip-items">${items.map((i) => `
-          <li title="Acertos somando todas as vezes: ✓ ${i.hits} · ✗ ${i.misses}">
-            <span class="t-chip-act">${esc(i.title)}${i.level ? ` <span class="dim">(${esc(i.level)})</span>` : ''}</span>
-            <span class="t-chip-act-n">${vezes(i.attempts)} · melhor ${i.best}/${i.total}</span>
-          </li>`).join('')}</ul>` : ''}
+        <div class="t-chip-top"><span class="t-chip-name">${c.icon} ${esc(c.label)}</span><span class="t-pct ${pctClass(p)}" title="Aproveitamento nas vezes terminadas">${p === null ? '—' : `${p}%`}</span></div>
+        <span class="t-chip-sum">${summary}${done ? ` · <span class="t-hit">✓ ${d.hits}</span> · <span class="t-miss">✗ ${d.misses}</span>` : ''}</span>
+        <ul class="t-chip-items">${list.map((a) => `
+          <li>
+            <span class="t-chip-act">${esc(a.title)}${a.level ? ` <span class="dim">(${esc(a.level)})</span>` : ''}</span>
+            ${(a.attempts > a.runs.length ? `<span class="t-run dim">… ${a.attempts - a.runs.length} vez(es) anterior(es)</span>` : '')}
+            ${a.runs.map((r) => {
+              const rp = pct(r.score, r.total - r.score);
+              return `<span class="t-run">${r.n}ª vez: <b>${r.score} de ${r.total}</b> <span class="t-pct ${pctClass(rp)}">(${rp}%)</span> <span class="dim">· ${shortDate(r.at)}</span></span>`;
+            }).join('')}
+            ${a.pending ? `<span class="t-run t-run-pending">⏳ ${a.attempts + 1}ª vez: <b>em andamento</b> · respondeu ${a.pending.answered} de ${a.pending.total} (✓ ${a.pending.hits} · ✗ ${a.pending.misses}) <span class="dim">· ${shortDate(a.pending.at)}</span></span>` : ''}
+          </li>`).join('')}</ul>
       </div>`;
   }
 
   function card(s, cat) {
     const p = pct(s.hits, s.misses);
-    const cats = categories.filter((c) => s.categories[c.key] && (!cat || c.key === cat));
     const pend = (s.pending || []).filter((p) => !cat || p.type === cat);
+    const cats = categories.filter((c) => (s.categories[c.key] || pend.some((p) => p.type === c.key)) && (!cat || c.key === cat));
     const levelBadge = s.level ? `<span class="level-badge level-${esc(s.level)}">${esc(s.level)}</span>` : '<span class="tag">Sem nível</span>';
     const off = s.active === false;
     const statusBadge = off
@@ -104,20 +136,10 @@
           </div>
           <button type="button" class="btn btn-ghost btn-sm" data-detail aria-expanded="false">Ver detalhes</button>
         </header>
+        ${pend.length ? `<p class="small t-pend-note">⏳ <b>${pend.length === 1 ? '1 atividade em andamento' : `${pend.length} atividades em andamento`}</b> <span class="dim">(começou e ainda não terminou; aparece no quadro da categoria)</span></p>` : ''}
         ${cats.length
-          ? `<div class="t-chips">${cats.map((c) => chip(c, s.categories[c.key])).join('')}</div>`
-          : pend.length ? '' : `<p class="small dim t-empty">${cat ? 'Nenhuma atividade nesta categoria.' : 'Ainda não fez nenhuma atividade.'}</p>`}
-        ${pend.length ? `
-          <div class="t-pending">
-            <p class="small"><b>⏳ ${pend.length === 1 ? '1 atividade pendente' : `${pend.length} atividades pendentes`}</b> <span class="dim">— começou e não terminou</span></p>
-            <ul>${pend.map((p) => `
-              <li>
-                <span class="t-pend-name">${catOf(p.type).icon} ${esc(p.title)} ${p.level ? `<span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span>` : ''}</span>
-                <span class="t-pend-bar" title="${p.percent}% respondido"><span style-pct="${p.percent}"></span></span>
-                <span class="t-pend-nums"><b>${p.percent}%</b> feito (${p.answered} de ${p.total}) · <span class="t-hit">✓ ${p.hits}</span> <span class="t-miss">✗ ${p.misses}</span> · ${formatDate(p.at)}</span>
-              </li>`).join('')}
-            </ul>
-          </div>` : ''}
+          ? `<div class="t-chips">${cats.map((c) => chip(c, s.categories[c.key], pend.filter((p) => p.type === c.key))).join('')}</div>`
+          : `<p class="small dim t-empty">${cat ? 'Nenhuma atividade nesta categoria.' : 'Ainda não fez nenhuma atividade.'}</p>`}
         ${s.done ? `<p class="small dim">📖 ${s.done} lição(ões)/videoaula(s) concluída(s).</p>` : ''}
         <div class="t-level">
           <span class="small"><b>Nível do aluno:</b> ${s.level ? esc(s.level) : 'sem nível'}${s.previous_level ? ` <span class="dim">(antes: ${esc(s.previous_level)} · ${formatDate(s.level_changed_at)})</span>` : ''}</span>
@@ -498,6 +520,13 @@
     level = b.dataset.level;
     document.querySelectorAll('#t-level button').forEach((x) => x.classList.toggle('active', x === b));
     render();
+  });
+
+  // "Como ler os números": lembra se o(a) professor(a) deixou aberto ou fechado.
+  const help = $('t-help');
+  try { help.open = localStorage.getItem('novera_t_help') === 'open'; } catch { /* sem armazenamento */ }
+  help.addEventListener('toggle', () => {
+    try { localStorage.setItem('novera_t_help', help.open ? 'open' : 'closed'); } catch { /* sem armazenamento */ }
   });
 
   load();

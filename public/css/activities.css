@@ -4,6 +4,17 @@
 .center { text-align: center; }
 
 /* ---------- Controle Professor(a) ---------- */
+.t-guide { margin: 0 0 1.1rem; padding: 0.8rem 1rem; border-radius: var(--radius); border: 1px solid var(--line); background: rgba(14, 7, 24, 0.45); font-size: 0.88rem; }
+.t-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.1rem; }
+.t-legend-title { color: var(--muted); font-weight: 600; }
+.t-key { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+.t-key i { width: 0.75rem; height: 0.75rem; border-radius: 50%; flex: none; }
+.t-key.good i { background: var(--success); } .t-key.good b { color: var(--success); }
+.t-key.mid i { background: var(--warn); } .t-key.mid b { color: var(--warn); }
+.t-key.low i { background: var(--danger); } .t-key.low b { color: var(--danger); }
+.t-guide details { margin-top: 0.6rem; }
+.t-guide summary { cursor: pointer; color: var(--violet); font-weight: 600; width: fit-content; }
+.t-guide details ul { margin: 0.6rem 0 0.2rem; padding-left: 1.1rem; display: grid; gap: 0.4rem; color: var(--muted); line-height: 1.45; }
 .t-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; margin-bottom: 1.4rem; }
 .t-stat { padding: 1rem 1.1rem; border-radius: var(--radius); border: 1px solid var(--line); background: linear-gradient(180deg, rgba(46, 27, 68, 0.75), rgba(29, 18, 46, 0.75)); display: grid; gap: 0.2rem; }
 .t-stat strong { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; }
@@ -20,15 +31,22 @@
 .t-pct.good, strong.good { color: var(--success); }
 .t-pct.mid, strong.mid { color: var(--warn); }
 .t-pct.low, strong.low { color: var(--danger); }
-.t-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
+.t-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
 .t-chip { padding: 0.6rem 0.75rem; border-radius: 12px; border: 1px solid var(--line); background: rgba(14, 7, 24, 0.4); display: grid; gap: 0.2rem; }
 .t-chip-name { font-size: 0.85rem; color: var(--muted); }
 .t-chip-nums { display: flex; gap: 0.8rem; font-weight: 600; }
 .t-chip-meta { font-size: 0.78rem; color: var(--dim); }
-.t-chip-items { list-style: none; margin: 0.35rem 0 0; padding: 0.35rem 0 0; border-top: 1px dashed var(--line); display: grid; gap: 0.3rem; font-size: 0.78rem; }
-.t-chip-items li { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
-.t-chip-act { color: var(--muted); overflow-wrap: anywhere; }
-.t-chip-act-n { color: var(--dim); white-space: nowrap; }
+.t-chip-top { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.t-chip-top .t-chip-name { font-weight: 600; color: var(--text); font-size: 0.92rem; }
+.t-chip-top .t-pct { font-size: 1.15rem; }
+.t-chip-sum { font-size: 0.82rem; color: var(--muted); }
+.t-chip-items { list-style: none; margin: 0.4rem 0 0; padding: 0.45rem 0 0; border-top: 1px dashed var(--line); display: grid; gap: 0.55rem; font-size: 0.82rem; }
+.t-chip-items li { display: grid; gap: 0.15rem; }
+.t-chip-act { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.t-run { padding-left: 0.8rem; color: var(--muted); }
+.t-run .t-pct { font-weight: 600; }
+.t-run-pending { color: var(--warn); }
+.t-pend-note { margin: 0.7rem 0 0; color: var(--warn); }
 .t-act { margin: 0 0 0.9rem; }
 .t-act-head { margin: 0 0 0.35rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .t-hit { color: var(--success); }

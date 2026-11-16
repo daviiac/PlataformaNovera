@@ -68,7 +68,8 @@ router.get('/overview', ah(async (req, res) => {
     db.query(`
       SELECT user_id, activity_key, COUNT(*)::int AS attempts, SUM(score)::int AS hits,
              SUM(total - score)::int AS misses, MAX(created_at) AS last_at,
-             MAX(score)::int AS best, MAX(total)::int AS total
+             MAX(score)::int AS best, MAX(total)::int AS total,
+             json_agg(json_build_object('score', score, 'total', total, 'at', created_at) ORDER BY created_at, id) AS runs
       FROM activity_attempts GROUP BY user_id, activity_key
     `),
     db.query(`
@@ -101,9 +102,12 @@ router.get('/overview', ah(async (req, res) => {
     c.activities += 1;
     // Cada atividade diferente da categoria: quantas vezes foi feita e o melhor resultado.
     if (info) {
+      const runs = typeof g.runs === 'string' ? JSON.parse(g.runs) : g.runs || [];
       c.items.push({
-        title: info.title, level: info.level, attempts: g.attempts, hits: g.hits, misses: g.misses,
+        key: g.activity_key, title: info.title, level: info.level, attempts: g.attempts, hits: g.hits, misses: g.misses,
         best: g.best, total: g.total, lastAt: g.last_at,
+        // Cada vez que terminou, em ordem (1ª, 2ª…); só as 10 últimas para não pesar a lista.
+        runs: runs.map((r, i) => ({ n: i + 1, score: r.score, total: r.total, at: r.at })).slice(-10),
       });
     }
     if (!c.lastAt || g.last_at > c.lastAt) c.lastAt = g.last_at;

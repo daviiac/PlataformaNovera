@@ -221,6 +221,8 @@ test('Controle Professor(a): acertos e erros por aluno e por categoria', async (
   const ov2 = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === duda.id);
   const bakery = ov2.categories.listen.items.find((i) => i.title === 'At the Bakery');
   assert.deepEqual({ a: bakery.attempts, best: bakery.best, total: bakery.total }, { a: 2, best: 5, total: 6 });
+  assert.deepEqual(bakery.runs.map((r) => [r.n, r.score, r.total]), [[1, 4, 6], [2, 5, 6]], 'cada vez em ordem: 1ª e 2ª');
+  assert.equal(bakery.key, 'b-listen-at-the-bakery');
   assert.equal(ov2.categories.listen.items.find((i) => i.title !== 'At the Bakery').attempts, 1);
   assert.equal(ov2.categories.listen.attempts, 3);
   const det2 = (await t('GET', `/api/teacher/students/${duda.id}`)).data;
