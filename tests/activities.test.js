@@ -247,7 +247,9 @@ test('vídeo 18+ ou impróprio para crianças é bloqueado no cadastro', () => {
 });
 
 test('músicas: só clipes oficiais e sem os vídeos retirados por conteúdo adulto', () => {
-  const banned = ['G7KNmW9a75Y', 'suAR1PYFNYA', 'b1kbLwvqugk'];
+  // Retirados por cenas de bebida/cigarro, pouca roupa, dança íntima ou letra adulta.
+  const banned = ['G7KNmW9a75Y', 'suAR1PYFNYA', 'b1kbLwvqugk', '2Vv-BfVoq4g', 'MI9ZpIKgyf0', 'H5v3kku4y6Q', 'Y66j_BUCBMY',
+    'm-M1AtrxztU', 'CevxZvSJLk8', 'w5tWYmIOWGk', 'QGJuMBdaqIw', 'xo1VInw-SKc'];
   const songs = BUILTIN.filter((a) => a.type === 'song');
   assert.equal(songs.length, 30);
   for (const s of songs) assert.ok(!banned.includes(s.data.youtubeId), s.slug);

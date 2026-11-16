@@ -43,21 +43,21 @@ function shuffle(list) {
 }
 
 const A1 = [
-  song('perfect', 'A1', 'Perfect', 'Ed Sheeran', '2Vv-BfVoq4g', 282,
-    'Uma das músicas de amor mais famosas do mundo. Vocabulário de sentimentos e descrições.', [
-      q('What is this song about?', ['Love for a partner', 'A trip to the beach', 'A football game']),
-      q('The word "perfect" means…', ['Very good, with no problems', 'Very tired', 'Very angry']),
-      q('In the song, the couple…', ['Dance together', 'Cook dinner', 'Play video games']),
-      q('"Barefoot" means…', ['Without shoes', 'With a hat', 'In a car']),
-      q('How does the singer feel about his partner?', ['He is in love', 'He is bored', 'He is scared']),
+  song('under-the-sea', 'A1', 'Under the Sea', 'Samuel E. Wright (The Little Mermaid)', 'GC_mV1IpjWA', 207,
+    'Do filme A Pequena Sereia: a vida no fundo do mar. Animais marinhos e vocabulário de lugares.', [
+      q('Where does this song take place?', ['Under the sea', 'In a big city', 'In the desert']),
+      q('Who sings the song in the movie?', ['Sebastian, a crab', 'A big dog', 'A princess on a horse']),
+      q('A "crab" is…', ['A sea animal with claws', 'A kind of bird', 'A type of fruit']),
+      q('Sebastian thinks life under the sea is…', ['Better than life on land', 'Boring and sad', 'Very dangerous']),
+      q('In the video, the sea animals…', ['Play music and dance', 'Sleep all the time', 'Go to school']),
     ]),
-  song('best-day-of-my-life', 'A1', 'Best Day of My Life', 'American Authors', 'Y66j_BUCBMY', 220,
-    'Uma música muito animada sobre um dia perfeito. Sentimentos, sonhos e o futuro com "going to".', [
-      q('What is the song about?', ['A very happy day', 'A sad goodbye', 'A day at the hospital']),
-      q('"The best day" means…', ['The day that is better than all the others', 'The worst day', 'A normal day']),
-      q('The mood of the song is…', ['Happy and full of energy', 'Sad and slow', 'Scary']),
-      q('Complete: "This is ___ to be a great day."', ['going', 'go', 'goes']),
-      q('"A dream" is…', ['Something you see when you sleep, or a big wish', 'A kind of food', 'A school subject']),
+  song('yellow-submarine', 'A1', 'Yellow Submarine', 'The Beatles', 'm2uTFF_3MaA', 165,
+    'Clássico dos Beatles em desenho animado. Cores, o mar e a vida com os amigos.', [
+      q('What color is the submarine?', ['Yellow', 'Red', 'Blue']),
+      q('A "submarine" is…', ['A boat that goes under the water', 'A plane', 'A train']),
+      q('The video is…', ['A colorful cartoon', 'A football game', 'A cooking show']),
+      q('In the song, the friends live…', ['Together in the submarine', 'In a castle', 'In a school']),
+      q('The mood of the song is…', ['Happy and fun', 'Sad', 'Scary']),
     ]),
   song('die-with-a-smile', 'A1', 'Die With A Smile', 'Lady Gaga & Bruno Mars', 'kPa7bsKwL-c', 253,
     'Dueto romântico: amor, futuro e o vocabulário de sentimentos.', [
@@ -83,13 +83,13 @@ const A1 = [
       q('"Forever" means…', ['For all time', 'For one day', 'Never']),
       q('The feeling of the song is…', ['Romantic and sweet', 'Angry', 'Scary']),
     ]),
-  song('as-it-was', 'A1', 'As It Was', 'Harry Styles', 'H5v3kku4y6Q', 166,
-    'Ritmo animado com um tema sobre mudanças na vida. Passado e presente.', [
-      q('Who sings this song?', ['Harry Styles', 'Ed Sheeran', 'Bruno Mars']),
-      q('"As it was" means…', ['The way it was before', 'Very fast', 'In the future']),
-      q('The song talks about…', ['Changes in life and feeling lonely', 'A birthday party', 'A cooking class']),
-      q('The music is fast, but the topic is…', ['A little sad', 'Very funny', 'About animals']),
-      q('Harry Styles was a member of the band…', ['One Direction', 'Coldplay', 'Maroon 5']),
+  song('bare-necessities', 'A1', 'The Bare Necessities', 'The Jungle Book', 'c6e3ITsjLRI', 245,
+    'Do filme Mogli: viver com simplicidade e sem preocupação. Animais, comida e a natureza.', [
+      q('Who sings this song in the movie?', ['Baloo, a big bear', 'A tiger', 'A fish']),
+      q('Where do Baloo and Mowgli live?', ['In the jungle', 'In a big city', 'On a ship']),
+      q('"Necessities" are…', ['Things you really need', 'Things you hate', 'Expensive toys']),
+      q('The message of the song is…', ['Relax and enjoy the simple things', 'Work all day and night', 'Buy many things']),
+      q('In the video, Baloo eats…', ['Fruit, like bananas', 'Pizza', 'Ice cream']),
     ]),
   song('ordinary', 'A1', 'Ordinary', 'Alex Warren', 'u2ah9tWTkmk', 187,
     'Uma balada sobre um amor que deixa a vida especial. Adjetivos e opostos.', [
@@ -115,13 +115,13 @@ const A1 = [
       q('In the movie, the singers are…', ['A K-pop girl group that fights demons', 'Teachers', 'Doctors']),
       q('"To shine" means…', ['To give light, to be bright', 'To sleep', 'To cry']),
     ]),
-  song('azizam', 'A1', 'Azizam', 'Ed Sheeran', 'MI9ZpIKgyf0', 208,
-    'Uma música alegre e dançante sobre amor. Palavras carinhosas.', [
-      q('"Azizam" is a Persian word that means…', ['My dear, my love', 'Goodbye', 'Thank you']),
-      q('The song is about…', ['A happy love and dancing', 'A war', 'School exams']),
-      q('The rhythm of the song is…', ['Happy and good for dancing', 'Very slow', 'Silent']),
-      q('Ed Sheeran is from…', ['England', 'Brazil', 'Japan']),
-      q('Which word is similar to "dear"?', ['Darling', 'Enemy', 'Stranger']),
+  song('friend-in-me', 'A1', 'You\'ve Got a Friend in Me', 'Toy Story (Disney Junior)', 'TewGnflYXl4', 80,
+    'Do filme Toy Story: o valor da amizade. Vocabulário de brinquedos e o verbo "have got".', [
+      q('What is the song about?', ['Friendship', 'Food', 'The weather']),
+      q('Woody and Buzz are…', ['Toys', 'Teachers', 'Doctors']),
+      q('Complete: "You ___ got a friend."', ['have', 'has', 'having']),
+      q('A good friend…', ['Helps you when you have a problem', 'Never talks to you', 'Takes your toys']),
+      q('The mood of the song is…', ['Happy and friendly', 'Angry', 'Scary']),
     ]),
 ];
 
@@ -134,13 +134,13 @@ const A2 = [
       q('In the video, people dance…', ['In everyday places, like a diner and a shop', 'Under the sea', 'In an airplane']),
       q('The mood of the song is…', ['Joyful and energetic', 'Dark and angry', 'Quiet and sleepy']),
     ]),
-  song('rather-be', 'A2', 'Rather Be', 'Clean Bandit ft. Jess Glynne', 'm-M1AtrxztU', 268,
-    'Querer estar com quem a gente gosta, em qualquer lugar. A expressão "would rather".', [
-      q('"I would rather be with you" means…', ['I prefer to be with you', 'I am angry with you', 'I don\'t know you']),
-      q('The song is about…', ['Wanting to be with someone you love, anywhere', 'Working late at night', 'A sports competition']),
-      q('The music video takes place in…', ['Japan', 'Brazil', 'Egypt']),
-      q('The song mixes pop music with…', ['Violins (classical strings)', 'Only drums', 'No instruments']),
-      q('Who sings with Clean Bandit in this song?', ['Jess Glynne', 'Adele', 'Dua Lipa']),
+  song('a-whole-new-world', 'A2', 'A Whole New World', 'Mena Massoud & Naomi Scott (Aladdin)', 'eitDnP0_83k', 190,
+    'Do filme Aladdin: uma viagem num tapete mágico. Adjetivos, lugares e o mundo.', [
+      q('How do Aladdin and Jasmine travel in the song?', ['On a magic carpet', 'By train', 'On a horse']),
+      q('"A whole new world" means…', ['A completely different place or experience', 'A small house', 'An old map']),
+      q('Jasmine feels…', ['Free and amazed', 'Bored', 'Angry']),
+      q('The song happens…', ['At night, under the stars', 'At lunchtime in a school', 'In the rain']),
+      q('This song is a…', ['Romantic duet', 'Rap battle', 'Rock song with screaming']),
     ]),
   song('dynamite', 'A2', 'Dynamite', 'BTS', 'gdZLi9oWNZg', 223,
     'O primeiro hit do BTS todo em inglês. Energia, cores e vocabulário de festa.', [
@@ -150,13 +150,13 @@ const A2 = [
       q('The style of the song is…', ['Disco pop, happy and colorful', 'Heavy metal', 'Opera']),
       q('"Shining" means…', ['Giving off a bright light', 'Very cold', 'Hiding']),
     ]),
-  song('on-top-of-the-world', 'A2', 'On Top of the World', 'Imagine Dragons', 'w5tWYmIOWGk', 242,
-    'A alegria de realizar um sonho depois de muito esforço. Expressões, passado e sentimentos.', [
-      q('What is the song about?', ['Feeling great after reaching a dream', 'Climbing a real mountain in the snow', 'Losing a game']),
-      q('"On top of the world" means…', ['Extremely happy and successful', 'Very high up in an airplane', 'Very tired']),
-      q('The singer says he has waited a long time to…', ['Smile and feel happy', 'Buy a new car', 'Go to sleep']),
-      q('Complete: "I have ___ dreaming of this since I was a child."', ['been', 'be', 'being']),
-      q('The mood of the song is…', ['Positive and celebratory', 'Angry', 'Very sad']),
+  song('build-a-snowman', 'A2', 'Do You Want to Build a Snowman?', 'Frozen', 'xz4zU-XCsP0', 58,
+    'Do filme Frozen: Anna quer brincar com a irmã. Perguntas com "do you want to…?" e brincadeiras.', [
+      q('Who sings this song?', ['Anna, Elsa\'s sister', 'Olaf', 'Kristoff']),
+      q('Anna wants to…', ['Play with her sister', 'Go to sleep', 'Study math']),
+      q('Complete: "Do you want ___ build a snowman?"', ['to', 'for', 'at']),
+      q('A "snowman" is made of…', ['Snow', 'Sand', 'Paper']),
+      q('Why is Anna sad?', ['Her sister doesn\'t open the door', 'She lost her shoes', 'It is too hot']),
     ]),
   song('what-makes-you-beautiful', 'A2', 'What Makes You Beautiful', 'One Direction', 'QJO3ROT-A4E', 206,
     'Um clássico do pop. Adjetivos, elogios e autoconfiança.', [
@@ -174,13 +174,13 @@ const A2 = [
       q('"Give up" means…', ['Stop trying', 'Get up early', 'Give a gift']),
       q('In Zootopia, Shakira\'s character is…', ['Gazelle, a pop star', 'A police officer', 'A teacher']),
     ]),
-  song('roar', 'A2', 'Roar', 'Katy Perry', 'CevxZvSJLk8', 269,
-    'Encontrar a própria força e a própria voz. Animais, sentimentos e superação.', [
-      q('A "roar" is the sound of…', ['A lion', 'A bird', 'A fish']),
-      q('The song is about…', ['Finding your strength and your voice', 'Buying a pet', 'A boring day']),
-      q('In the music video, Katy Perry is…', ['In a jungle', 'In space', 'In a supermarket']),
-      q('A "champion" is…', ['A winner', 'A loser', 'A teacher']),
-      q('At the end of the song, she feels…', ['Strong and brave', 'Tired and sad', 'Lost']),
+  song('into-the-unknown', 'A2', 'Into the Unknown', 'Idina Menzel & AURORA (Frozen 2)', 'cGlJS-5c_XY', 185,
+    'Do filme Frozen 2: Elsa ouve uma voz misteriosa. Vocabulário de aventura e o futuro.', [
+      q('Who sings this song?', ['Elsa', 'Anna', 'Olaf']),
+      q('"The unknown" means…', ['Something you don\'t know yet', 'Your best friend', 'Your house']),
+      q('Elsa hears…', ['A mysterious voice', 'A phone ringing', 'A dog barking']),
+      q('At first, Elsa wants to…', ['Ignore the voice and stay safe', 'Go shopping', 'Sleep']),
+      q('Elsa\'s magic power is…', ['Ice and snow', 'Fire', 'Flying']),
     ]),
   song('drivers-license', 'A2', 'drivers license', 'Olivia Rodrigo', 'ZmDBbnmKpqQ', 247,
     'A música que lançou Olivia Rodrigo. Passado, lembranças e sentimentos.', [
@@ -217,13 +217,13 @@ const B2 = [
       q('The music video takes place…', ['In a basement, while people sing in a church upstairs', 'On a farm', 'In a school classroom']),
       q('OneRepublic is a band from…', ['The USA', 'Ireland', 'Australia']),
     ]),
-  song('firework', 'B2', 'Firework', 'Katy Perry', 'QGJuMBdaqIw', 233,
-    'Todo mundo tem algo especial para mostrar. Metáforas e vocabulário de autoestima.', [
-      q('The song compares a person to a firework to say that…', ['Everyone has something special inside that can shine', 'Fireworks are dangerous', 'Parties are boring']),
-      q('"Ignite" means…', ['To start burning', 'To turn off', 'To freeze']),
-      q('The music video shows…', ['Young people overcoming problems and gaining confidence', 'A cooking competition', 'A football final']),
-      q('The song speaks to…', ['Anyone who feels insecure or invisible', 'Only professional dancers', 'Firefighters']),
-      q('"Self-esteem" means…', ['How much you value yourself', 'A type of firework', 'A school subject']),
+  song('speechless', 'B2', 'Speechless', 'Naomi Scott (Aladdin)', 'mw5VIEIvuMI', 206,
+    'Do filme Aladdin: Jasmine se recusa a ficar calada. Vocabulário de coragem, voz e liberdade.', [
+      q('"Speechless" means…', ['Unable to speak', 'Very talkative', 'Very fast']),
+      q('In the song, Jasmine decides that she…', ['Won\'t be silenced anymore', 'Will leave the city forever', 'Wants to be quiet']),
+      q('The video shows Naomi Scott…', ['Recording the song with an orchestra', 'Playing football', 'Cooking']),
+      q('"To be silenced" means…', ['To be forced to stop talking', 'To sing louder', 'To fall asleep']),
+      q('The main theme of the song is…', ['Courage and using your voice', 'A summer holiday', 'Losing a game']),
     ]),
   song('what-was-i-made-for', 'B2', 'What Was I Made For?', 'Billie Eilish', 'cW8VLC9nnTo', 249,
     'Identidade e propósito. Vocabulário abstrato e interpretação.', [
@@ -273,13 +273,13 @@ const B2 = [
       q('Elsa\'s powers are related to…', ['Ice and snow', 'Fire', 'Water']),
       q('"Conceal" means…', ['To hide', 'To show', 'To freeze']),
     ]),
-  song('fight-song', 'B2', 'Fight Song', 'Rachel Platten', 'xo1VInw-SKc', 205,
-    'Encontrar força interior e não desistir. Metáforas, phrasal verbs e vocabulário de superação.', [
-      q('In this song, a "fight song" is…', ['A song that gives you strength to keep going', 'A song about boxing', 'A song played during a war']),
-      q('The main message is…', ['Believe in yourself, even when others doubt you', 'Give up when things get hard', 'Always follow the crowd']),
-      q('"To take back your life" means…', ['To regain control of your own life', 'To return something to a shop', 'To move back to your old house']),
-      q('"Resilience" means…', ['The ability to recover from difficulties', 'A fear of the dark', 'A type of musical instrument']),
-      q('The singer compares her voice to…', ['Something small that can still make a big impact', 'A loud alarm that annoys people', 'A broken radio']),
+  song('colors-of-the-wind', 'B2', 'Colors of the Wind', 'Pocahontas', 'nI9BkfcZAMA', 58,
+    'Do filme Pocahontas: respeito à natureza e às outras culturas. Metáforas e vocabulário abstrato.', [
+      q('The main message of the song is…', ['Respect nature and other people', 'Cities are better than forests', 'Money is the most important thing']),
+      q('Pocahontas says that every rock, tree and creature…', ['Has a life and a spirit', 'Belongs to someone', 'Is worthless']),
+      q('"The colors of the wind" is…', ['A metaphor for things you can only see with an open mind', 'A real rainbow', 'A painting technique']),
+      q('Pocahontas sings to…', ['John Smith, an English explorer', 'Her teacher', 'A king']),
+      q('The song criticizes people who…', ['Think they own the land they walk on', 'Love animals', 'Sing in the forest']),
     ]),
   song('viva-la-vida', 'B2', 'Viva La Vida', 'Coldplay', 'dvgZkm1xWPE', 243,
     'Um rei que perdeu o poder. Narrativa no passado e metáforas históricas.', [
