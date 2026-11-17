@@ -46,7 +46,7 @@
       <p class="small muted">Essas pessoas se cadastraram, mas só conseguem entrar depois que você aprovar. Se não reconhecer alguém, recuse: o cadastro é apagado.</p>
       <ul>${approvals.map((s) => `
         <li data-id="${s.id}">
-          <div class="t-appr-who"><strong>${esc(s.name)}</strong><span class="small dim">${esc(s.email || '')} · nível: ${levelName(s.level)} · ${dateTime(s.created_at)}</span></div>
+          <div class="t-appr-who"><strong>${esc(s.name)}</strong><span class="small dim">Login: <strong>${esc(s.email || '')}</strong> · nível: ${levelName(s.level)} · ${dateTime(s.created_at)}</span></div>
           <div class="t-appr-actions">
             <button type="button" class="btn btn-sm" data-approve>✅ Aprovar</button>
             <button type="button" class="btn btn-danger btn-sm" data-reject>❌ Recusar</button>
@@ -68,7 +68,7 @@
       if (approve) {
         await api(`/api/teacher/students/${id}/approve`, { method: 'POST' });
         students.push({ ...s, approval_pending: false });
-        Novera.toast(`Cadastro de ${s.name} aprovado ✓ Já pode entrar com o e-mail e a senha que criou.`);
+        Novera.toast(`Cadastro de ${s.name} aprovado ✓ Já pode entrar agora. Login: ${s.email} (o e-mail, não o nome) e a senha que criou.`);
       } else {
         await api(`/api/teacher/students/${id}`, { method: 'DELETE' });
         Novera.toast(`Cadastro de ${s.name} recusado e apagado.`);

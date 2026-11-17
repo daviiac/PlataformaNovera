@@ -509,6 +509,10 @@ test('cadastro novo aguarda aprovação: só entra depois que a professora aprov
     assert.equal(blocked.data.code, 'PENDING_APPROVAL');
     // Senha errada continua dizendo só "incorretos" (não revela a situação da conta).
     assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Errada#2026xx' } })).status, 401);
+    // Aluno ansioso tenta várias vezes enquanto espera e acaba bloqueado por excesso de tentativas...
+    let last;
+    for (let i = 0; i < 7; i += 1) last = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    assert.equal(last.status, 429, 'bloqueado por excesso de tentativas');
 
     const t = await login(TEACHER.user, TEACHER.pass);
     const pend = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.email === email);
@@ -519,7 +523,7 @@ test('cadastro novo aguarda aprovação: só entra depois que a professora aprov
     assert.equal((await t('POST', '/api/teacher/students/999999/approve')).status, 404);
     assert.equal((await t('POST', `/api/teacher/students/${pend.id}/approve`)).status, 200);
     const ok = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
-    assert.equal(ok.status, 200, 'depois de aprovado, entra');
+    assert.equal(ok.status, 200, 'depois de aprovado, entra na mesma hora (a aprovação libera o bloqueio)');
     const row = await db.one('SELECT approval_pending, approved_at FROM users WHERE email = $1', [email]);
     assert.ok(!row.approval_pending && row.approved_at);
 

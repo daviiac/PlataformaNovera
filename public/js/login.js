@@ -28,12 +28,14 @@
   if (window.location.hash === '#cadastro') showTab('register');
 
   // Cadastro recebido: fica aguardando a aprovação da escola (não entra ainda).
-  function showPending(form, message) {
+  function showPending(form, message, email) {
     const done = document.createElement('div');
     done.className = 'signup-pending';
     done.setAttribute('role', 'status');
-    done.innerHTML = '<h2>✅ Cadastro recebido!</h2><p></p><button type="button" class="btn btn-ghost btn-block">Voltar para o login</button>';
+    done.innerHTML = '<h2>✅ Cadastro recebido!</h2><p></p><p class="signup-login">Seu login é o seu e-mail: <strong></strong></p><button type="button" class="btn btn-ghost btn-block">Voltar para o login</button>';
     done.querySelector('p').textContent = message;
+    done.querySelector('.signup-login strong').textContent = email || '';
+    done.querySelector('.signup-login').hidden = !email;
     done.querySelector('button').addEventListener('click', () => {
       done.remove();
       form.reset();
@@ -49,14 +51,15 @@
     const button = form.querySelector('button[type=submit]');
     button.disabled = true;
     try {
-      const r = await fn(Object.fromEntries(new FormData(form)));
-      if (r.pending) return showPending(form, r.message);
+      const data = Object.fromEntries(new FormData(form));
+      const r = await fn(data);
+      if (r.pending) return showPending(form, r.message, String(data.email || '').trim().toLowerCase());
       window.location.replace(homeFor(r.user));
     } catch (err) {
       let hint = '';
       const typed = String(form.querySelector('[name=identifier]')?.value || '');
       if (form === forms.login && (err.status === 401 || err.status === 429) && !typed.includes('@')) {
-        hint = ' Confira o login que a professora passou, ou entre com o e-mail cadastrado (ex.: nome@gmail.com).';
+        hint = ' Quem fez o cadastro sozinho entra com o e-mail cadastrado (ex.: nome@gmail.com), não com o nome. Se a professora passou um login, confira se digitou certo.';
       } else if (form === forms.login && err.status === 401) {
         hint = ' Se você acabou de criar uma senha nova, apague a senha que o navegador preencheu sozinho e digite a nova.';
       } else if (form === forms.login && err.status === 429) {

@@ -314,6 +314,8 @@ router.post('/students/:id/approve', ah(async (req, res) => {
     )
     : null;
   if (!row) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  // Quem tentou entrar várias vezes enquanto esperava pode ter ficado bloqueado: libera na hora.
+  await clearAccountLimits(row.email);
   res.json({ ok: true, student: row });
 }));
 
