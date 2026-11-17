@@ -57,7 +57,7 @@ function pendingDto(p, info) {
 router.get('/overview', ah(async (req, res) => {
   const [students, grouped, placements, progress] = await Promise.all([
     db.query(`
-      SELECT u.id, u.name, u.email, u.username, u.level, u.created_at, u.active, u.deactivated_at,
+      SELECT u.id, u.name, u.email, u.username, u.level, u.created_at, u.active, u.deactivated_at, u.approval_pending,
              lc.from_level AS previous_level, lc.created_at AS level_changed_at
       FROM users u
       LEFT JOIN LATERAL (
@@ -299,6 +299,22 @@ router.patch('/students/:id/active', ah(async (req, res) => {
   if (!active) await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
   else await clearAccountLimits(student.email);
   res.json({ ok: true, active: row.active, deactivatedAt: row.deactivated_at });
+}));
+
+/**
+ * Aprova um cadastro novo: a pessoa passa a conseguir entrar na plataforma.
+ * Recusar = excluir o cadastro (DELETE /students/:id).
+ */
+router.post('/students/:id/approve', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const row = Number.isInteger(id)
+    ? await db.one(
+      "UPDATE users SET approval_pending = false, approved_at = now() WHERE id = $1 AND role = 'student' RETURNING id, name, email, approved_at",
+      [id],
+    )
+    : null;
+  if (!row) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  res.json({ ok: true, student: row });
 }));
 
 /**

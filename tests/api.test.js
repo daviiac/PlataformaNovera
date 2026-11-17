@@ -1,5 +1,8 @@
 'use strict';
 
+// Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
+process.env.SIGNUP_APPROVAL = 'off';
+
 // Testes de integração da API: sobem o app real com Postgres em memória (PGlite)
 // e armazenamento local temporário — sem depender do Supabase.
 const { test, before, after } = require('node:test');

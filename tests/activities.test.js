@@ -1,5 +1,8 @@
 'use strict';
 
+// Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
+process.env.SIGNUP_APPROVAL = 'off';
+
 // Testes das Atividades e Worksheets (API + correção de respostas do navegador).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');

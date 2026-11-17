@@ -55,13 +55,13 @@ const loadUser = ah(async (req, res, next) => {
   if (!token) return next();
 
   const row = await db.one(`
-    SELECT u.id, u.name, u.email, u.username, u.role, u.level, u.must_change_password, u.active, s.expires_at, s.token_hash
+    SELECT u.id, u.name, u.email, u.username, u.role, u.level, u.must_change_password, u.active, u.approval_pending, s.expires_at, s.token_hash
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = $1
   `, [sha256(token)]);
 
-  // Sessão expirada ou aluno inativado pela escola: encerra a sessão.
-  if (!row || Number(row.expires_at) < Date.now() || row.active === false) {
+  // Sessão expirada, aluno inativado pela escola ou cadastro ainda não aprovado: encerra a sessão.
+  if (!row || Number(row.expires_at) < Date.now() || row.active === false || row.approval_pending) {
     if (row) await db.query('DELETE FROM sessions WHERE token_hash = $1', [row.token_hash]);
     res.clearCookie(COOKIE_NAME, cookieOptions());
     return next();

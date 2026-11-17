@@ -1,5 +1,8 @@
 'use strict';
 
+// Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
+process.env.SIGNUP_APPROVAL = 'off';
+
 // Testes: cadastro com nível + senha forte, perfil do professor e Controle Professor(a).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -486,4 +489,56 @@ test('segurança: pedidos de outro site são recusados', async () => {
   const evil = await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { cookie, origin: 'https://site-malicioso.example' } });
   assert.equal(evil.status, 403);
   assert.equal((await t('GET', '/api/auth/me')).data.user.username, TEACHER.user);
+});
+
+test('cadastro novo aguarda aprovação: só entra depois que a professora aprova', async () => {
+  process.env.SIGNUP_APPROVAL = 'on';
+  await db.query('DELETE FROM auth_attempts');
+  try {
+    const email = 'aprovar@exemplo.com';
+    const s = client();
+    const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Vera Aprovar', email, password: STRONG, level: 'A1' } });
+    assert.equal(reg.status, 201);
+    assert.equal(reg.data.pending, true, 'avisa que aguarda aprovação');
+    assert.equal(reg.data.user, undefined, 'não devolve usuário logado');
+    assert.equal((await s('GET', '/api/auth/me')).data?.user ?? null, null, 'não abre sessão');
+
+    // Senha certa, mas ainda não aprovado.
+    const blocked = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.data.code, 'PENDING_APPROVAL');
+    // Senha errada continua dizendo só "incorretos" (não revela a situação da conta).
+    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Errada#2026xx' } })).status, 401);
+
+    const t = await login(TEACHER.user, TEACHER.pass);
+    const pend = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.email === email);
+    assert.equal(pend.approval_pending, true, 'aparece para a professora como aguardando');
+
+    // Aluno não aprova a si mesmo.
+    assert.equal((await client()('POST', `/api/teacher/students/${pend.id}/approve`)).status, 401);
+    assert.equal((await t('POST', '/api/teacher/students/999999/approve')).status, 404);
+    assert.equal((await t('POST', `/api/teacher/students/${pend.id}/approve`)).status, 200);
+    const ok = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    assert.equal(ok.status, 200, 'depois de aprovado, entra');
+    const row = await db.one('SELECT approval_pending, approved_at FROM users WHERE email = $1', [email]);
+    assert.ok(!row.approval_pending && row.approved_at);
+
+    // Recusar = apagar o cadastro.
+    const reg2 = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Rui Recusar', email: 'recusar@exemplo.com', password: STRONG, level: 'A2' } });
+    assert.equal(reg2.data.pending, true);
+    const rid = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.email === 'recusar@exemplo.com').id;
+    assert.equal((await t('DELETE', `/api/teacher/students/${rid}`)).status, 200);
+    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: 'recusar@exemplo.com', password: STRONG } })).status, 401);
+  } finally {
+    process.env.SIGNUP_APPROVAL = 'off';
+  }
+});
+
+test('aviso por e-mail: sem configuração não envia e não quebra o cadastro', async () => {
+  const { notifyNewSignup, emailConfigured } = require('../src/notify');
+  const saved = process.env.BREVO_API_KEY;
+  delete process.env.BREVO_API_KEY;
+  assert.equal(emailConfigured(), false);
+  assert.deepEqual(await notifyNewSignup({ name: 'X', email: 'x@exemplo.com', level: 'A1' }), { sent: false, reason: 'não configurado' });
+  if (saved !== undefined) process.env.BREVO_API_KEY = saved;
 });

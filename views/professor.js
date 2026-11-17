@@ -7,6 +7,7 @@
   const $ = (id) => document.getElementById(id);
   let categories = [];
   let students = [];
+  let approvals = [];
   let level = '';
   const detailCache = new Map();
 
@@ -33,6 +34,55 @@
       <div class="t-stat"><strong class="${pctClass(g)}">${g === null ? '—' : `${g}%`}</strong><span>aproveitamento geral (✓ ${H} · ✗ ${M})</span></div>`;
   }
 
+  // ------------------------------------------------------------ cadastros aguardando aprovação
+  const levelName = (l) => (l ? esc(l) : 'Não sabe (fará o nivelamento)');
+
+  function renderApprovals() {
+    const box = $('t-approvals');
+    box.hidden = approvals.length === 0;
+    if (!approvals.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+      <h2>🔔 ${approvals.length === 1 ? '1 cadastro aguardando aprovação' : `${approvals.length} cadastros aguardando aprovação`}</h2>
+      <p class="small muted">Essas pessoas se cadastraram, mas só conseguem entrar depois que você aprovar. Se não reconhecer alguém, recuse: o cadastro é apagado.</p>
+      <ul>${approvals.map((s) => `
+        <li data-id="${s.id}">
+          <div class="t-appr-who"><strong>${esc(s.name)}</strong><span class="small dim">${esc(s.email || '')} · nível: ${levelName(s.level)} · ${dateTime(s.created_at)}</span></div>
+          <div class="t-appr-actions">
+            <button type="button" class="btn btn-sm" data-approve>✅ Aprovar</button>
+            <button type="button" class="btn btn-danger btn-sm" data-reject>❌ Recusar</button>
+          </div>
+        </li>`).join('')}
+      </ul>`;
+  }
+
+  $('t-approvals').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-approve], [data-reject]');
+    if (!btn) return;
+    const id = Number(btn.closest('li').dataset.id);
+    const s = approvals.find((x) => x.id === id);
+    if (!s) return;
+    const approve = btn.hasAttribute('data-approve');
+    if (!approve && !confirm(`Recusar o cadastro de ${s.name} (${s.email})?\n\nO cadastro é apagado e a pessoa não consegue entrar.`)) return;
+    btn.closest('li').querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try {
+      if (approve) {
+        await api(`/api/teacher/students/${id}/approve`, { method: 'POST' });
+        students.push({ ...s, approval_pending: false });
+        Novera.toast(`Cadastro de ${s.name} aprovado ✓ Já pode entrar com o e-mail e a senha que criou.`);
+      } else {
+        await api(`/api/teacher/students/${id}`, { method: 'DELETE' });
+        Novera.toast(`Cadastro de ${s.name} recusado e apagado.`);
+      }
+      approvals = approvals.filter((x) => x.id !== id);
+      renderApprovals();
+      renderStats();
+      render();
+    } catch (err) {
+      btn.closest('li').querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      Novera.toast(err.message);
+    }
+  });
+
   // ------------------------------------------------------------ carregar / atualizar
   async function load() {
     const btn = $('t-refresh');
@@ -43,7 +93,11 @@
       if (!categories.length) {
         $('t-cat').innerHTML += data.categories.map((c) => `<option value="${c.key}">${c.icon} ${esc(c.label)}</option>`).join('');
       }
-      ({ categories, students } = data);
+      categories = data.categories;
+      // Cadastros novos aguardando aprovação ficam no quadro do topo, fora da lista de alunos.
+      approvals = data.students.filter((s) => s.approval_pending);
+      students = data.students.filter((s) => !s.approval_pending);
+      renderApprovals();
       detailCache.clear();
       $('t-error').textContent = '';
       $('t-updated').textContent = `Atualizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;

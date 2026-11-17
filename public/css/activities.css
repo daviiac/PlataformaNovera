@@ -4,6 +4,15 @@
 .center { text-align: center; }
 
 /* ---------- Controle Professor(a) ---------- */
+.signup-pending { display: grid; gap: 0.8rem; padding: 0.4rem 0; }
+.signup-pending h2 { margin: 0; font-size: 1.3rem; color: var(--success); }
+.signup-pending p { margin: 0; color: var(--muted); line-height: 1.5; }
+.t-approvals { margin: 0 0 1.1rem; padding: 1rem 1.1rem; border-radius: var(--radius); border: 1px solid rgba(242, 182, 96, 0.5); background: rgba(242, 182, 96, 0.08); }
+.t-approvals h2 { font-size: 1.1rem; margin: 0 0 0.3rem; color: var(--warn); }
+.t-approvals ul { list-style: none; margin: 0.7rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.t-approvals li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 12px; background: rgba(14, 7, 24, 0.45); border: 1px solid var(--line); }
+.t-appr-who { display: grid; gap: 0.15rem; min-width: 0; overflow-wrap: anywhere; }
+.t-appr-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .t-guide { margin: 0 0 1.1rem; padding: 0.8rem 1rem; border-radius: var(--radius); border: 1px solid var(--line); background: rgba(14, 7, 24, 0.45); font-size: 0.88rem; }
 .t-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.1rem; }
 .t-legend-title { color: var(--muted); font-weight: 600; }

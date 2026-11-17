@@ -7,8 +7,13 @@ const {
 } = require('../auth');
 
 const PasswordPolicy = require('../../public/js/password-policy');
+const { notifyNewSignup } = require('../notify');
 
 const router = express.Router();
+
+// Aprovação de cadastros: ligada sempre, exceto nos testes automáticos (SIGNUP_APPROVAL=off).
+const approvalRequired = () => process.env.SIGNUP_APPROVAL !== 'off';
+const PENDING_MESSAGE = 'Agora é só aguardar a aprovação da Novera Academy. Assim que seu acesso for liberado, você entra com o seu e-mail e a senha que acabou de criar.';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -72,18 +77,26 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   if (exists) return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
 
   const passwordHash = await hashPassword(password);
+  // Cadastro novo só entra depois que a professora aprovar no Controle Professor(a).
+  const pending = approvalRequired();
   // O cadastro público sempre cria perfil "student"; não existe rota para virar admin.
   let user;
   try {
     user = await db.one(
-      "INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at, guardian_consent_at) VALUES ($1, $2, $3, 'student', $4, now(), now()) RETURNING *",
-      [name, email, passwordHash, level],
+      `INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at, guardian_consent_at, approval_pending)
+       VALUES ($1, $2, $3, 'student', $4, now(), now(), $5) RETURNING *`,
+      [name, email, passwordHash, level, pending],
     );
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
     throw err;
   }
 
+  if (pending) {
+    // Aviso por e-mail para a escola (se configurado). Falha no e-mail não impede o cadastro.
+    await notifyNewSignup({ name, email, level: levelChoice }).catch((err) => console.warn('[aviso de cadastro]', err.message));
+    return res.status(201).json({ pending: true, message: PENDING_MESSAGE });
+  }
   await createSession(res, user.id);
   res.status(201).json({ user: publicUser(user) });
 }));
@@ -107,6 +120,12 @@ router.post('/login', loginLimiter, ah(async (req, res) => {
     return res.status(403).json({
       error: 'Seu acesso à Plataforma Novera está inativo. Fale com a escola ou com sua professora para reativar.',
       code: 'ACCOUNT_INACTIVE',
+    });
+  }
+  if (user.approval_pending) {
+    return res.status(403).json({
+      error: 'Seu cadastro ainda está aguardando a aprovação da Novera Academy. Assim que for aprovado, você consegue entrar.',
+      code: 'PENDING_APPROVAL',
     });
   }
 

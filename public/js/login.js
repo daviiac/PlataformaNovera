@@ -27,13 +27,31 @@
   });
   if (window.location.hash === '#cadastro') showTab('register');
 
+  // Cadastro recebido: fica aguardando a aprovação da escola (não entra ainda).
+  function showPending(form, message) {
+    const done = document.createElement('div');
+    done.className = 'signup-pending';
+    done.setAttribute('role', 'status');
+    done.innerHTML = '<h2>✅ Cadastro recebido!</h2><p></p><button type="button" class="btn btn-ghost btn-block">Voltar para o login</button>';
+    done.querySelector('p').textContent = message;
+    done.querySelector('button').addEventListener('click', () => {
+      done.remove();
+      form.reset();
+      showTab('login');
+    });
+    form.hidden = true;
+    form.after(done);
+    done.querySelector('button').focus();
+  }
+
   async function submit(form, fn) {
     errorEl.textContent = '';
     const button = form.querySelector('button[type=submit]');
     button.disabled = true;
     try {
-      const { user } = await fn(Object.fromEntries(new FormData(form)));
-      window.location.replace(homeFor(user));
+      const r = await fn(Object.fromEntries(new FormData(form)));
+      if (r.pending) return showPending(form, r.message);
+      window.location.replace(homeFor(r.user));
     } catch (err) {
       let hint = '';
       const typed = String(form.querySelector('[name=identifier]')?.value || '');

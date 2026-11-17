@@ -1,5 +1,8 @@
 'use strict';
 
+// Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
+process.env.SIGNUP_APPROVAL = 'off';
+
 // Testes: trilha de aulas, homeworks e controle de nível pela professora.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
