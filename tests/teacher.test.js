@@ -2,6 +2,8 @@
 
 // Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
 process.env.SIGNUP_APPROVAL = 'off';
+// Login do cadastro (obrigatório): a parte do e-mail antes do @.
+const U = (e) => String(e).split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30).padEnd(3, '0');
 
 // Testes: cadastro com nível + senha forte, perfil do professor e Controle Professor(a).
 const { test, before, after } = require('node:test');
@@ -69,7 +71,7 @@ after(async () => {
 test('professora redefine a senha: senha provisória e troca obrigatória no próximo login', async () => {
   const email = 'esqueci@exemplo.com';
   const s = client();
-  assert.equal((await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Clara Nunes', email, password: STRONG, level: 'A1' } })).status, 201);
+  assert.equal((await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Clara Nunes', email, username: U(email), password: STRONG, level: 'A1' } })).status, 201);
   const sid = (await s('GET', '/api/auth/me')).data.user.id;
 
   // Aluno não pode redefinir senha de ninguém.
@@ -83,10 +85,10 @@ test('professora redefine a senha: senha provisória e troca obrigatória no pr�
 
   // Sessão antiga encerrada e senha antiga deixa de funcionar.
   assert.equal((await s('GET', '/api/auth/me')).data.user, null);
-  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } })).status, 401);
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: STRONG } })).status, 401);
 
   // Entra com a provisória: só pode trocar a senha.
-  const c = await login(email, temp);
+  const c = await login(U(email), temp);
   assert.equal((await c('GET', '/api/auth/me')).data.user.mustChangePassword, true);
   const blocked = await c('GET', '/api/tracks');
   assert.equal(blocked.status, 403);
@@ -99,7 +101,7 @@ test('professora redefine a senha: senha provisória e troca obrigatória no pr�
 
   // Acesso liberado e a nova senha funciona; troca normal exige a senha atual.
   assert.equal((await c('GET', '/api/tracks')).status, 200);
-  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Nova#Senha77' } })).status, 200);
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: 'Nova#Senha77' } })).status, 200);
   assert.equal((await c('POST', '/api/auth/change-password', { json: { password: 'Outra#Senha88' } })).data.code, 'WRONG_PASSWORD');
 
   // Professor(a) não redefine senha de equipe.
@@ -121,7 +123,7 @@ test('política de senha: aponta o que falta e aceita senha forte', () => {
 });
 
 test('cadastro: todos os campos obrigatórios, nível e senha forte', async () => {
-  const base = { name: 'Bruna Lima', email: 'bruna@exemplo.com', password: STRONG, level: 'A2', acceptTerms: true, guardianConsent: true };
+  const base = { name: 'Bruna Lima', username: 'bruna', email: 'bruna@exemplo.com', password: STRONG, level: 'A2', acceptTerms: true, guardianConsent: true };
   const noTerms = await client()('POST', '/api/auth/register', { json: { ...base, acceptTerms: false } });
   assert.equal(noTerms.status, 400, 'precisa aceitar os termos');
   assert.equal(noTerms.data.code, 'TERMS_REQUIRED');
@@ -135,6 +137,12 @@ test('cadastro: todos os campos obrigatórios, nível e senha forte', async () =
   assert.equal(weak.data.code, 'WEAK_PASSWORD');
   assert.match(weak.data.error, /maiúscula/);
   assert.equal((await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, name: '' } })).status, 400);
+  // Login obrigatório, no formato certo e sem repetir o de outra pessoa.
+  for (const username of [undefined, '', 'br', 'Bruna Lima', 'bruna@exemplo.com', 'joão']) {
+    assert.equal((await client()('POST', '/api/auth/register', { json: { ...base, username } })).data.code, 'BAD_USERNAME', `login ${username}`);
+  }
+  assert.equal((await client()('POST', '/api/auth/register', { json: { ...base, username: TEACHER.user } })).data.code, 'USERNAME_TAKEN');
+  await db.query('DELETE FROM auth_attempts'); // muitas tentativas de cadastro de propósito acima
 
   // Nível informado no cadastro já libera trilhas e atividades.
   const c = client();
@@ -142,12 +150,16 @@ test('cadastro: todos os campos obrigatórios, nível e senha forte', async () =
   assert.equal(ok.status, 201);
   assert.equal(ok.data.user.level, 'A2');
   assert.equal((await c('GET', '/api/tracks/A2')).status, 200);
-  const saved = await db.one('SELECT terms_accepted_at, guardian_consent_at FROM users WHERE email = $1', [base.email]);
+  const saved = await db.one('SELECT terms_accepted_at, guardian_consent_at, username FROM users WHERE email = $1', [base.email]);
   assert.ok(saved.terms_accepted_at && saved.guardian_consent_at, 'grava a data do aceite e da autorização');
+  assert.equal(saved.username, 'bruna');
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: 'BRUNA', password: STRONG } })).status, 200, 'entra com o login');
+  const byEmail = await client()('POST', '/api/auth/login', { json: { identifier: base.email, password: STRONG } });
+  assert.equal(byEmail.status, 401, 'não entra com o e-mail');
 
   // "Não sei" → sem nível, vai para o nivelamento.
   const d = client();
-  const t = await d('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, email: 'nao-sei@exemplo.com', level: 'TEST' } });
+  const t = await d('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  ...base, email: 'nao-sei@exemplo.com', username: 'nao-sei', level: 'TEST' } });
   assert.equal(t.data.user.level, null);
   assert.equal((await d('GET', '/api/tracks/A1')).data.code, 'PLACEMENT_REQUIRED');
   // Este teste faz várias tentativas de propósito; zera o limite de cadastros para os próximos.
@@ -158,7 +170,7 @@ test('Controle Professor(a): só o login do professor acessa', async () => {
   assert.equal((await client()('GET', '/api/teacher/overview')).status, 401);
 
   const s = client();
-  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Rocha', email: 'caio@exemplo.com', password: STRONG, level: 'A1' } });
+  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Rocha', email: 'caio@exemplo.com', username: 'caio', password: STRONG, level: 'A1' } });
   assert.equal((await s('GET', '/api/teacher/overview')).status, 403);
   assert.equal((await s('GET', '/professor')).status, 302);
   assert.equal((await s('GET', '/professor/professor.js')).status, 302);
@@ -184,7 +196,7 @@ test('Controle Professor(a): só o login do professor acessa', async () => {
 
 test('Controle Professor(a): acertos e erros por aluno e por categoria', async () => {
   const s = client();
-  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Duda Alves', email: 'duda@exemplo.com', password: STRONG, level: 'TEST' } });
+  await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Duda Alves', email: 'duda@exemplo.com', username: 'duda', password: STRONG, level: 'TEST' } });
   // Nivelamento: acerta tudo de A1, erra o resto.
   const answers = Object.fromEntries(QUESTIONS.map((q) => [q.id, q.band === 'A1' ? q.answer : (q.answer + 1) % q.options.length]));
   await s('POST', '/api/placement/submit', { json: { answers } });
@@ -250,7 +262,7 @@ test('migração: banco antigo passa a aceitar o perfil professor', async () => 
 
 test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', async () => {
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', username: 'gabi', password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const sid = reg.data.user.id;
   await s('POST', '/api/activities/b-listen-at-the-bakery/attempts', { json: { score: 3, total: 6 } });
@@ -266,11 +278,11 @@ test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', as
   assert.ok(off.data.deactivatedAt);
   assert.equal((await s('GET', '/api/tracks')).status, 401, 'sessão aberta encerrada');
   assert.equal((await s('GET', '/api/auth/me')).data.user, null);
-  const blocked = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi@exemplo.com', password: STRONG } });
+  const blocked = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi', password: STRONG } });
   assert.equal(blocked.status, 403);
   assert.equal(blocked.data.code, 'ACCOUNT_INACTIVE');
   // Senha errada continua dando a mensagem genérica (não revela a situação da conta).
-  const wrong = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi@exemplo.com', password: 'Errada#2026x' } });
+  const wrong = await client()('POST', '/api/auth/login', { json: { identifier: 'gabi', password: 'Errada#2026x' } });
   assert.equal(wrong.status, 401);
   const listed = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid);
   assert.equal(listed.active, false);
@@ -280,7 +292,7 @@ test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', as
   const on = await t('PATCH', `/api/teacher/students/${sid}/active`, { json: { active: true } });
   assert.equal(on.data.active, true);
   assert.equal(on.data.deactivatedAt, null);
-  const back = await login('gabi@exemplo.com', STRONG);
+  const back = await login('gabi', STRONG);
   assert.equal((await back('GET', '/api/tracks')).status, 200);
 
   // Professor(a) não inativa nem exclui outra pessoa da equipe.
@@ -298,39 +310,39 @@ test('Controle Professor(a): inativar, reativar e excluir cadastro do aluno', as
   assert.equal((await db.query('SELECT 1 FROM activity_attempts WHERE user_id = $1', [sid])).length, 0);
   assert.equal((await db.query('SELECT 1 FROM level_changes WHERE user_id = $1', [sid])).length, 0);
   assert.equal((await t('DELETE', `/api/teacher/students/${sid}`)).status, 404);
-  const again = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', password: STRONG, level: 'A1' } });
+  const again = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Gabi Nunes', email: 'gabi@exemplo.com', username: 'gabi', password: STRONG, level: 'A1' } });
   assert.equal(again.status, 201);
 });
 
 test('senha provisória: aceita espaço ou quebra de linha copiados junto; senha normal continua exata', async () => {
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Prado', email: 'caio.temp@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Caio Prado', email: 'caio.temp@exemplo.com', username: 'caio.temp', password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const anon = () => client();
   // Senha normal: espaço a mais continua sendo senha errada.
-  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: `${STRONG} ` } })).status, 401);
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp', password: `${STRONG} ` } })).status, 401);
 
   const t = await login(TEACHER.user, TEACHER.pass);
   const r1 = await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`);
   const r2 = await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`);
   const temp = r2.data.tempPassword;
   // Só a senha mais nova vale.
-  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: r1.data.tempPassword } })).status, 401);
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp', password: r1.data.tempPassword } })).status, 401);
   for (const pw of [`${temp} `, `${temp}\n`, ` ${temp}`, `\t${temp}\r\n`]) {
-    const r = await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: pw } });
+    const r = await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp', password: pw } });
     assert.equal(r.status, 200, JSON.stringify(pw));
     assert.equal(r.data.user.mustChangePassword, true);
   }
   // Maiúsculas/minúsculas continuam importando.
-  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp@exemplo.com', password: temp.toLowerCase() } })).status, 401);
+  assert.equal((await anon()('POST', '/api/auth/login', { json: { identifier: 'caio.temp', password: temp.toLowerCase() } })).status, 401);
 });
 
 test('redefinir senha libera o bloqueio por tentativas; depois da troca entra só com a senha nova', async () => {
   const email = 'rita.bloqueio@exemplo.com';
   const s = client();
-  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Rita Lopes', email, password: STRONG, level: 'A1' } });
+  const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Rita Lopes', email, username: U(email), password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
-  const tryLogin = (password) => client()('POST', '/api/auth/login', { json: { identifier: email, password } });
+  const tryLogin = (password) => client()('POST', '/api/auth/login', { json: { identifier: U(email), password } });
 
   for (let i = 0; i < 8; i += 1) assert.equal((await tryLogin('Errada#2026x')).status, 401);
   const locked = await tryLogin(STRONG);
@@ -339,7 +351,7 @@ test('redefinir senha libera o bloqueio por tentativas; depois da troca entra s�
   const t = await login(TEACHER.user, TEACHER.pass);
   const { tempPassword } = (await t('POST', `/api/teacher/students/${reg.data.user.id}/reset-password`)).data;
   const c = client();
-  const first = await c('POST', '/api/auth/login', { json: { identifier: email, password: tempPassword } });
+  const first = await c('POST', '/api/auth/login', { json: { identifier: U(email), password: tempPassword } });
   assert.equal(first.status, 200, 'redefinir libera o bloqueio');
   assert.equal(first.data.user.mustChangePassword, true);
 
@@ -357,7 +369,7 @@ test('redefinir senha libera o bloqueio por tentativas; depois da troca entra s�
 
 test('professor(a) define a senha escolhida para o aluno', async () => {
   const email = 'lara.definir@exemplo.com';
-  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Lara Mendes', email, password: STRONG, level: 'A1' } });
+  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Lara Mendes', email, username: U(email), password: STRONG, level: 'A1' } });
   assert.equal(reg.status, 201);
   const sid = reg.data.user.id;
   const t = await login(TEACHER.user, TEACHER.pass);
@@ -370,27 +382,27 @@ test('professor(a) define a senha escolhida para o aluno', async () => {
   // Sem pedir troca: entra direto com a senha definida.
   const ok = await setPw({ password: 'Morro#2026q' });
   assert.equal(ok.status, 200);
-  const l1 = await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Morro#2026q' } });
+  const l1 = await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: 'Morro#2026q' } });
   assert.equal(l1.status, 200);
   assert.equal(l1.data.user.mustChangePassword, false);
-  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } })).status, 401, 'senha antiga não vale');
+  assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: STRONG } })).status, 401, 'senha antiga não vale');
 
   // Pedindo troca: entra e é levado a criar uma senha própria.
   assert.equal((await setPw({ password: 'Praia#2026k', requireChange: true })).status, 200);
-  const l2 = await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Praia#2026k' } });
+  const l2 = await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: 'Praia#2026k' } });
   assert.equal(l2.data.user.mustChangePassword, true);
 
   // Só alunos; aluno não usa a rota.
   const staff = await db.one('SELECT id FROM users WHERE username = $1', [ADMIN.user]);
   assert.equal((await t('POST', `/api/teacher/students/${staff.id}/set-password`, { json: { password: 'Morro#2026q' } })).status, 404);
-  const st = await login(email, 'Praia#2026k');
+  const st = await login(U(email), 'Praia#2026k');
   assert.equal((await st('POST', `/api/teacher/students/${sid}/set-password`, { json: { password: 'Morro#2026q' } })).status, 403);
 });
 
-test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail continua valendo)', async () => {
+test('professor(a) cria login para o aluno: entra com login e senha nova (o e-mail deixa de valer)', async () => {
   await db.query('DELETE FROM auth_attempts'); // todos os testes entram pelo mesmo IP
   const email = 'nina.login@exemplo.com';
-  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Nina Rocha', email, password: STRONG, level: 'A1' } });
+  const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Nina Rocha', email, username: U(email), password: STRONG, level: 'A1' } });
   const sid = reg.data.user.id;
   const t = await login(TEACHER.user, TEACHER.pass);
   const setPw = (json) => t('POST', `/api/teacher/students/${sid}/set-password`, { json });
@@ -406,24 +418,25 @@ test('professor(a) cria login para o aluno: entra com login e senha nova (e-mail
   assert.equal(ok.data.student.username, 'ninar', 'login salvo em minúsculas');
   assert.equal((await tryLogin('ninar', 'Morro#2026q')).status, 200, 'entra com o login');
   assert.equal((await tryLogin('NINAR', 'Morro#2026q')).status, 200, 'maiúsculas no login não importam');
-  assert.equal((await tryLogin(email, 'Morro#2026q')).status, 200, 'e-mail continua valendo');
+  assert.equal((await tryLogin(email, 'Morro#2026q')).status, 401, 'com login, o e-mail não serve para entrar');
   assert.equal((await tryLogin('ninar', STRONG)).status, 401, 'senha antiga não vale');
   const ov = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === sid);
   assert.equal(ov.username, 'ninar');
 
   // Outro aluno não pode usar o mesmo login.
-  const other = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Otto Lima', email: 'otto.login@exemplo.com', password: STRONG, level: 'A1' } });
+  const other = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Otto Lima', email: 'otto.login@exemplo.com', username: 'otto.login', password: STRONG, level: 'A1' } });
   const dup = await t('POST', `/api/teacher/students/${other.data.user.id}/set-password`, { json: { password: 'Morro#2026q', username: 'ninar' } });
   assert.equal(dup.data.code, 'USERNAME_TAKEN');
   // Ninguém se cadastra com e-mail igual a um login existente (não há como, login não tem @) e o login some se ficar vazio.
   assert.equal((await setPw({ password: 'Praia#2026k', username: '' })).data.student.username, null);
   assert.equal((await tryLogin('ninar', 'Praia#2026k')).status, 401);
+  assert.equal((await tryLogin(email, 'Praia#2026k')).status, 200, 'sem login, volta a entrar com o e-mail');
 });
 
 test('atividade não terminada: professora vê o % e o aluno vê como pendente; some ao concluir', async () => {
   await db.query('DELETE FROM auth_attempts');
   const st = client();
-  const reg = await st('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Pia Torres', email: 'pia.pendente@exemplo.com', password: STRONG, level: 'A1' } });
+  const reg = await st('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Pia Torres', email: 'pia.pendente@exemplo.com', username: 'pia.pendente', password: STRONG, level: 'A1' } });
   const sid = reg.data.user.id;
   const key = 'b-order-introductions';
   const put = (json) => st('PUT', `/api/activities/${key}/progress`, { json });
@@ -497,21 +510,21 @@ test('cadastro novo aguarda aprovação: só entra depois que a professora aprov
   try {
     const email = 'aprovar@exemplo.com';
     const s = client();
-    const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Vera Aprovar', email, password: STRONG, level: 'A1' } });
+    const reg = await s('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Vera Aprovar', email, username: U(email), password: STRONG, level: 'A1' } });
     assert.equal(reg.status, 201);
     assert.equal(reg.data.pending, true, 'avisa que aguarda aprovação');
     assert.equal(reg.data.user, undefined, 'não devolve usuário logado');
     assert.equal((await s('GET', '/api/auth/me')).data?.user ?? null, null, 'não abre sessão');
 
     // Senha certa, mas ainda não aprovado.
-    const blocked = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    const blocked = await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: STRONG } });
     assert.equal(blocked.status, 403);
     assert.equal(blocked.data.code, 'PENDING_APPROVAL');
     // Senha errada continua dizendo só "incorretos" (não revela a situação da conta).
-    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: email, password: 'Errada#2026xx' } })).status, 401);
+    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: 'Errada#2026xx' } })).status, 401);
     // Aluno ansioso tenta várias vezes enquanto espera e acaba bloqueado por excesso de tentativas...
     let last;
-    for (let i = 0; i < 7; i += 1) last = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    for (let i = 0; i < 7; i += 1) last = await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: STRONG } });
     assert.equal(last.status, 429, 'bloqueado por excesso de tentativas');
 
     const t = await login(TEACHER.user, TEACHER.pass);
@@ -522,17 +535,17 @@ test('cadastro novo aguarda aprovação: só entra depois que a professora aprov
     assert.equal((await client()('POST', `/api/teacher/students/${pend.id}/approve`)).status, 401);
     assert.equal((await t('POST', '/api/teacher/students/999999/approve')).status, 404);
     assert.equal((await t('POST', `/api/teacher/students/${pend.id}/approve`)).status, 200);
-    const ok = await client()('POST', '/api/auth/login', { json: { identifier: email, password: STRONG } });
+    const ok = await client()('POST', '/api/auth/login', { json: { identifier: U(email), password: STRONG } });
     assert.equal(ok.status, 200, 'depois de aprovado, entra na mesma hora (a aprovação libera o bloqueio)');
     const row = await db.one('SELECT approval_pending, approved_at FROM users WHERE email = $1', [email]);
     assert.ok(!row.approval_pending && row.approved_at);
 
     // Recusar = apagar o cadastro.
-    const reg2 = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Rui Recusar', email: 'recusar@exemplo.com', password: STRONG, level: 'A2' } });
+    const reg2 = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Rui Recusar', email: 'recusar@exemplo.com', username: 'recusar', password: STRONG, level: 'A2' } });
     assert.equal(reg2.data.pending, true);
     const rid = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.email === 'recusar@exemplo.com').id;
     assert.equal((await t('DELETE', `/api/teacher/students/${rid}`)).status, 200);
-    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: 'recusar@exemplo.com', password: STRONG } })).status, 401);
+    assert.equal((await client()('POST', '/api/auth/login', { json: { identifier: 'recusar', password: STRONG } })).status, 401);
   } finally {
     process.env.SIGNUP_APPROVAL = 'off';
   }

@@ -28,14 +28,14 @@
   if (window.location.hash === '#cadastro') showTab('register');
 
   // Cadastro recebido: fica aguardando a aprovação da escola (não entra ainda).
-  function showPending(form, message, email) {
+  function showPending(form, message, login) {
     const done = document.createElement('div');
     done.className = 'signup-pending';
     done.setAttribute('role', 'status');
-    done.innerHTML = '<h2>✅ Cadastro recebido!</h2><p></p><p class="signup-login">Seu login é o seu e-mail: <strong></strong></p><button type="button" class="btn btn-ghost btn-block">Voltar para o login</button>';
+    done.innerHTML = '<h2>✅ Cadastro recebido!</h2><p></p><p class="signup-login">Seu login: <strong></strong></p><button type="button" class="btn btn-ghost btn-block">Voltar para o login</button>';
     done.querySelector('p').textContent = message;
-    done.querySelector('.signup-login strong').textContent = email || '';
-    done.querySelector('.signup-login').hidden = !email;
+    done.querySelector('.signup-login strong').textContent = login || '';
+    done.querySelector('.signup-login').hidden = !login;
     done.querySelector('button').addEventListener('click', () => {
       done.remove();
       form.reset();
@@ -53,13 +53,13 @@
     try {
       const data = Object.fromEntries(new FormData(form));
       const r = await fn(data);
-      if (r.pending) return showPending(form, r.message, String(data.email || '').trim().toLowerCase());
+      if (r.pending) return showPending(form, r.message, r.username);
       window.location.replace(homeFor(r.user));
     } catch (err) {
       let hint = '';
       const typed = String(form.querySelector('[name=identifier]')?.value || '');
-      if (form === forms.login && (err.status === 401 || err.status === 429) && !typed.includes('@')) {
-        hint = ' Quem fez o cadastro sozinho entra com o e-mail cadastrado (ex.: nome@gmail.com), não com o nome. Se a professora passou um login, confira se digitou certo.';
+      if (form === forms.login && err.status === 401 && typed.includes('@')) {
+        hint = ' Entre com o seu login (o que você criou no cadastro), não com o e-mail.';
       } else if (form === forms.login && err.status === 401) {
         hint = ' Se você acabou de criar uma senha nova, apague a senha que o navegador preencheu sozinho e digite a nova.';
       } else if (form === forms.login && err.status === 429) {
@@ -70,7 +70,7 @@
     }
   }
 
-  // Login sempre em letras minúsculas (e-mail e usuário não diferenciam maiúsculas).
+  // Login sempre em letras minúsculas (não diferencia maiúsculas).
   const loginId = document.getElementById('login-identifier');
   loginId.addEventListener('input', () => {
     const lower = loginId.value.toLowerCase();
@@ -84,7 +84,7 @@
   forms.login.addEventListener('submit', (e) => {
     e.preventDefault();
     submit(forms.login, ({ identifier, password }) => {
-      if (!identifier || !password) throw new Error('Preencha usuário/e-mail e senha.');
+      if (!identifier || !password) throw new Error('Preencha login e senha.');
       return api('/api/auth/login', { method: 'POST', body: { identifier, password } });
     });
   });
@@ -92,9 +92,15 @@
   // ---------- Cadastro: todos os campos obrigatórios + senha forte com dicas ao vivo ----------
   const $ = (id) => document.getElementById(id);
   const reg = {
-    name: $('reg-name'), email: $('reg-email'), level: $('reg-level'), password: $('reg-password'), confirm: $('reg-confirm'), terms: $('reg-terms'), guardian: $('reg-guardian'),
+    name: $('reg-name'), username: $('reg-username'), email: $('reg-email'), level: $('reg-level'), password: $('reg-password'), confirm: $('reg-confirm'), terms: $('reg-terms'), guardian: $('reg-guardian'),
   };
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const USER_RE = /^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/;
+  // Login do cadastro sempre em minúsculas e sem espaço.
+  reg.username.addEventListener('input', () => {
+    const clean = reg.username.value.toLowerCase().replace(/\s+/g, '');
+    if (clean !== reg.username.value) reg.username.value = clean;
+  });
 
   function evaluate() {
     const name = reg.name.value.trim();
@@ -119,6 +125,7 @@
 
     const missing = [];
     if (name.length < 2) missing.push('nome');
+    if (!USER_RE.test(reg.username.value)) missing.push('login (3 a 30 letras minúsculas, números, . _ -)');
     if (!EMAIL_RE.test(email)) missing.push('e-mail válido');
     if (!reg.level.value) missing.push('nível');
     if (!result.ok) missing.push('senha forte');
@@ -137,10 +144,10 @@
 
   forms.register.addEventListener('submit', (e) => {
     e.preventDefault();
-    submit(forms.register, ({ name, email, password, level }) => {
+    submit(forms.register, ({ name, username, email, password, level }) => {
       const state = evaluate();
       if (!state.ok) throw new Error(`Falta: ${state.missing.join(', ')}.`);
-      return api('/api/auth/register', { method: 'POST', body: { name, email, password, level, acceptTerms: reg.terms.checked, guardianConsent: reg.guardian.checked } });
+      return api('/api/auth/register', { method: 'POST', body: { name, username, email, password, level, acceptTerms: reg.terms.checked, guardianConsent: reg.guardian.checked } });
     });
   });
 })();

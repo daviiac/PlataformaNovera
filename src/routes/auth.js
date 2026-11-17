@@ -13,7 +13,10 @@ const router = express.Router();
 
 // Aprovação de cadastros: ligada sempre, exceto nos testes automáticos (SIGNUP_APPROVAL=off).
 const approvalRequired = () => process.env.SIGNUP_APPROVAL !== 'off';
-const PENDING_MESSAGE = 'Agora é só aguardar a aprovação da Novera Academy. Assim que seu acesso for liberado, você entra com o seu e-mail e a senha que acabou de criar.';
+const PENDING_MESSAGE = 'Agora é só aguardar a aprovação da Novera Academy. Assim que seu acesso for liberado, você entra com o seu login e a senha que acabou de criar.';
+
+// Login do aluno: minúsculas, 3–30 caracteres, letras/números/. _ - (sem @, então nunca se confunde com e-mail).
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -51,8 +54,12 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   const email = str(req.body?.email).toLowerCase();
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const levelChoice = str(req.body?.level).toUpperCase();
+  const username = str(req.body?.username).toLowerCase();
 
   if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Informe um nome entre 2 e 80 caracteres.' });
+  if (!USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Login inválido: use de 3 a 30 letras minúsculas, números, ponto, hífen ou _ (sem espaço e sem acento).', code: 'BAD_USERNAME' });
+  }
   if (!EMAIL_RE.test(email) || email.length > 160) return res.status(400).json({ error: 'Informe um e-mail válido.' });
   // Nível obrigatório: A1, A2, B2 ou "TEST" (não sei — vou fazer o teste de nivelamento).
   if (!['A1', 'A2', 'B2', 'TEST'].includes(levelChoice)) {
@@ -75,6 +82,8 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
 
   const exists = await db.one('SELECT 1 FROM users WHERE email = $1 OR username = $1', [email]);
   if (exists) return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
+  const taken = await db.one('SELECT 1 FROM users WHERE username = $1 OR email = $1', [username]);
+  if (taken) return res.status(409).json({ error: `O login "${username}" já está em uso. Escolha outro.`, code: 'USERNAME_TAKEN' });
 
   const passwordHash = await hashPassword(password);
   // Cadastro novo só entra depois que a professora aprovar no Controle Professor(a).
@@ -83,19 +92,19 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   let user;
   try {
     user = await db.one(
-      `INSERT INTO users (name, email, password_hash, role, level, terms_accepted_at, guardian_consent_at, approval_pending)
-       VALUES ($1, $2, $3, 'student', $4, now(), now(), $5) RETURNING *`,
-      [name, email, passwordHash, level, pending],
+      `INSERT INTO users (name, email, username, password_hash, role, level, terms_accepted_at, guardian_consent_at, approval_pending)
+       VALUES ($1, $2, $3, $4, 'student', $5, now(), now(), $6) RETURNING *`,
+      [name, email, username, passwordHash, level, pending],
     );
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
+    if (err.code === '23505') return res.status(409).json({ error: 'Já existe uma conta com este e-mail ou login.' });
     throw err;
   }
 
   if (pending) {
     // Aviso por e-mail para a escola (se configurado). Falha no e-mail não impede o cadastro.
-    await notifyNewSignup({ name, email, level: levelChoice }).catch((err) => console.warn('[aviso de cadastro]', err.message));
-    return res.status(201).json({ pending: true, message: PENDING_MESSAGE });
+    await notifyNewSignup({ name, email, username, level: levelChoice }).catch((err) => console.warn('[aviso de cadastro]', err.message));
+    return res.status(201).json({ pending: true, message: PENDING_MESSAGE, username });
   }
   await createSession(res, user.id);
   res.status(201).json({ user: publicUser(user) });
@@ -104,17 +113,17 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
 router.post('/login', loginLimiter, ah(async (req, res) => {
   const identifier = str(req.body?.identifier).toLowerCase();
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!identifier || !password) return res.status(400).json({ error: 'Informe usuário/e-mail e senha.' });
+  if (!identifier || !password) return res.status(400).json({ error: 'Informe login e senha.' });
 
-  // Aceita e-mail (alunos) ou nome de usuário (administrador).
-  const user = await db.one('SELECT * FROM users WHERE email = $1 OR username = $1', [identifier]);
+  // Entra com o login. O e-mail só vale para contas antigas que ainda não têm login.
+  const user = await db.one('SELECT * FROM users WHERE username = $1 OR (email = $1 AND username IS NULL)', [identifier]);
   let ok = await verifyPassword(password, user?.password_hash);
   // Senha provisória (gerada pela professora) nunca tem espaços: aceita mesmo se vier com espaço ou
   // quebra de linha nas pontas, o que é comum ao copiar do WhatsApp. Senhas normais continuam exatas.
   if (!ok && user?.must_change_password && password.trim() && password.trim() !== password) {
     ok = await verifyPassword(password.trim(), user.password_hash);
   }
-  if (!user || !ok) return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
+  if (!user || !ok) return res.status(401).json({ error: 'Login ou senha incorretos.' });
   // Só depois de conferir a senha, para não revelar a situação da conta a quem não a conhece.
   if (user.active === false) {
     return res.status(403).json({

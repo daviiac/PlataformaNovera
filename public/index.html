@@ -49,10 +49,10 @@
 
         <form id="login-form" novalidate>
           <h2>Bem-vindo de volta</h2>
-          <p class="muted small">Entre com seu login ou e-mail.</p>
+          <p class="muted small">Entre com o seu login e a sua senha.</p>
           <div class="field">
-            <label for="login-identifier">Login ou e-mail</label>
-            <input id="login-identifier" name="identifier" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="login ou e-mail" required>
+            <label for="login-identifier">Login</label>
+            <input id="login-identifier" name="identifier" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="seu login" required>
           </div>
           <div class="field">
             <label for="login-password">Senha</label>
@@ -62,7 +62,7 @@
           <p class="hint center-text"><button type="button" class="link-btn" id="forgot-btn" aria-expanded="false" aria-controls="forgot-help">Esqueci minha senha</button></p>
           <div class="notice-info small" id="forgot-help" hidden>
             🔑 <b>Fale com sua professora.</b> Ela gera uma <b>senha provisória</b> para você no Controle Professor(a).
-            Entre com o seu e-mail e essa senha — logo em seguida você cria uma senha nova, só sua.
+            Entre com o seu login e essa senha — logo em seguida você cria uma senha nova, só sua.
           </div>
         </form>
 
@@ -72,6 +72,11 @@
           <div class="field">
             <label for="reg-name">Nome</label>
             <input id="reg-name" name="name" autocomplete="name" required minlength="2" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="reg-username">Login <span class="dim small">(é com ele que você vai entrar)</span></label>
+            <input id="reg-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required minlength="3" maxlength="30" placeholder="ex.: gabizinha02">
+            <span class="hint">De 3 a 30 letras minúsculas, números, ponto, hífen ou _ — sem espaço e sem acento.</span>
           </div>
           <div class="field">
             <label for="reg-email">E-mail</label>

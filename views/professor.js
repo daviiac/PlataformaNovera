@@ -46,7 +46,7 @@
       <p class="small muted">Essas pessoas se cadastraram, mas só conseguem entrar depois que você aprovar. Se não reconhecer alguém, recuse: o cadastro é apagado.</p>
       <ul>${approvals.map((s) => `
         <li data-id="${s.id}">
-          <div class="t-appr-who"><strong>${esc(s.name)}</strong><span class="small dim">Login: <strong>${esc(s.email || '')}</strong> · nível: ${levelName(s.level)} · ${dateTime(s.created_at)}</span></div>
+          <div class="t-appr-who"><strong>${esc(s.name)}</strong><span class="small dim">Login: <strong>${esc(s.username || s.email || '')}</strong> · e-mail: ${esc(s.email || '')} · nível: ${levelName(s.level)} · ${dateTime(s.created_at)}</span></div>
           <div class="t-appr-actions">
             <button type="button" class="btn btn-sm" data-approve>✅ Aprovar</button>
             <button type="button" class="btn btn-danger btn-sm" data-reject>❌ Recusar</button>
@@ -68,7 +68,7 @@
       if (approve) {
         await api(`/api/teacher/students/${id}/approve`, { method: 'POST' });
         students.push({ ...s, approval_pending: false });
-        Novera.toast(`Cadastro de ${s.name} aprovado ✓ Já pode entrar agora. Login: ${s.email} (o e-mail, não o nome) e a senha que criou.`);
+        Novera.toast(`Cadastro de ${s.name} aprovado ✓ Já pode entrar agora com o login ${s.username || s.email} e a senha que criou.`);
       } else {
         await api(`/api/teacher/students/${id}`, { method: 'DELETE' });
         Novera.toast(`Cadastro de ${s.name} recusado e apagado.`);
@@ -297,7 +297,7 @@
     el.innerHTML = `
       <div class="card reset-card setpw-card" role="dialog" aria-modal="true" aria-labelledby="setpw-title">
         <h2 id="setpw-title">✏️ Login e senha de ${esc(first)}</h2>
-        <p class="small muted">${esc(first)} vai entrar com este <b>login</b> e esta <b>senha</b>. O e-mail (${esc(s.email || '')}) também continua funcionando.</p>
+        <p class="small muted">${esc(first)} vai entrar com este <b>login</b> e esta <b>senha</b>. Com login, o e-mail (${esc(s.email || '')}) não serve mais para entrar.</p>
         <div class="field">
           <label for="setpw-user" class="small">Login (só letras minúsculas, sem espaço)</label>
           <input id="setpw-user" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" value="${esc(suggested)}">

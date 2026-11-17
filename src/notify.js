@@ -21,7 +21,7 @@ function emailConfigured() {
   return Boolean(env('BREVO_API_KEY') && env('NOTIFY_EMAIL') && env('NOTIFY_FROM'));
 }
 
-async function notifyNewSignup({ name, email, level }) {
+async function notifyNewSignup({ name, email, username, level }) {
   if (!emailConfigured()) return { sent: false, reason: 'não configurado' };
   const site = (env('PUBLIC_URL') || 'https://plataformanovera.vercel.app').replace(/\/+$/, '');
   const levelText = level === 'TEST' ? 'Não sabe (vai fazer o nivelamento)' : level;
@@ -29,7 +29,7 @@ async function notifyNewSignup({ name, email, level }) {
   const html = `
     <div style="font-family:Arial,sans-serif;font-size:15px;color:#222">
       <h2 style="margin:0 0 12px">Novo cadastro aguardando aprovação</h2>
-      <p><b>Nome:</b> ${esc(name)}<br><b>E-mail:</b> ${esc(email)}<br><b>Nível:</b> ${esc(levelText)}<br><b>Data:</b> ${esc(when)}</p>
+      <p><b>Nome:</b> ${esc(name)}<br><b>Login:</b> ${esc(username || '')}<br><b>E-mail:</b> ${esc(email)}<br><b>Nível:</b> ${esc(levelText)}<br><b>Data:</b> ${esc(when)}</p>
       <p>A pessoa só consegue entrar na plataforma depois que você aprovar.</p>
       <p>Para aprovar ou recusar, entre no <b>Controle Professor(a)</b> com o seu login:<br>
         <a href="${esc(site)}/professor">${esc(site)}/professor</a></p>

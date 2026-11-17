@@ -254,7 +254,8 @@ router.post('/students/:id/set-password', ah(async (req, res) => {
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
   if (password !== password.trim()) return res.status(400).json({ error: 'A senha não pode começar nem terminar com espaço.' });
 
-  const username = rawUser || null;
+  // Sem o campo login no pedido, mantém o login atual (o que o aluno criou no cadastro).
+  const username = req.body?.username === undefined ? student.username : (rawUser || null);
   if (username) {
     if (!USERNAME_RE.test(username)) {
       return res.status(400).json({ error: 'Login inválido: use de 3 a 30 letras minúsculas, números, ponto, hífen ou _ (sem espaço e sem acento).', code: 'BAD_USERNAME' });
@@ -287,7 +288,7 @@ router.patch('/students/:id/active', ah(async (req, res) => {
   if (typeof req.body?.active !== 'boolean') return res.status(400).json({ error: 'Informe se o acesso fica ativo ou inativo.' });
   const active = req.body.active;
   const student = Number.isInteger(id)
-    ? await db.one("SELECT id, name, email, active FROM users WHERE id = $1 AND role = 'student'", [id])
+    ? await db.one("SELECT id, name, email, username, active FROM users WHERE id = $1 AND role = 'student'", [id])
     : null;
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
 
@@ -297,7 +298,10 @@ router.patch('/students/:id/active', ah(async (req, res) => {
     [active, id],
   );
   if (!active) await db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
-  else await clearAccountLimits(student.email);
+  else {
+    await clearAccountLimits(student.email);
+    if (student.username) await clearAccountLimits(student.username);
+  }
   res.json({ ok: true, active: row.active, deactivatedAt: row.deactivated_at });
 }));
 
@@ -309,13 +313,14 @@ router.post('/students/:id/approve', ah(async (req, res) => {
   const id = Number(req.params.id);
   const row = Number.isInteger(id)
     ? await db.one(
-      "UPDATE users SET approval_pending = false, approved_at = now() WHERE id = $1 AND role = 'student' RETURNING id, name, email, approved_at",
+      "UPDATE users SET approval_pending = false, approved_at = now() WHERE id = $1 AND role = 'student' RETURNING id, name, email, username, approved_at",
       [id],
     )
     : null;
   if (!row) return res.status(404).json({ error: 'Aluno não encontrado.' });
   // Quem tentou entrar várias vezes enquanto esperava pode ter ficado bloqueado: libera na hora.
   await clearAccountLimits(row.email);
+  if (row.username) await clearAccountLimits(row.username);
   res.json({ ok: true, student: row });
 }));
 

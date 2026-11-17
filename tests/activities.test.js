@@ -2,6 +2,8 @@
 
 // Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
 process.env.SIGNUP_APPROVAL = 'off';
+// Login do cadastro (obrigatório): a parte do e-mail antes do @.
+const U = (e) => String(e).split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30).padEnd(3, '0');
 
 // Testes das Atividades e Worksheets (API + correção de respostas do navegador).
 const { test, before, after } = require('node:test');
@@ -46,7 +48,7 @@ function client() {
 
 async function student(email, { placed = true, level = 'TEST' } = {}) {
   const c = client();
-  assert.equal((await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Aluno', email, password: 'Lago#Verde2026', level } })).status, 201);
+  assert.equal((await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Aluno', email, username: U(email), password: 'Lago#Verde2026', level } })).status, 201);
   if (placed && level === 'TEST') await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
   return c;
 }

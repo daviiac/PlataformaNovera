@@ -2,6 +2,8 @@
 
 // Aprovação de cadastros desligada aqui (os testes entram logo após cadastrar); testada à parte.
 process.env.SIGNUP_APPROVAL = 'off';
+// Login do cadastro (obrigatório): a parte do e-mail antes do @.
+const U = (e) => String(e).split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 30).padEnd(3, '0');
 
 // Testes de integração da API: sobem o app real com Postgres em memória (PGlite)
 // e armazenamento local temporário — sem depender do Supabase.
@@ -65,7 +67,7 @@ async function uploadMaterial(admin, moduleId, name, content, title) {
 
 async function newStudent(name, email, { placed = true, level = 'TEST' } = {}) {
   const c = client();
-  const r = await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name, email, password: 'Lago#Verde2026', level } });
+  const r = await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name, email, username: U(email), password: 'Lago#Verde2026', level } });
   assert.equal(r.status, 201);
   if (placed && level === 'TEST') {
     await c('POST', '/api/placement/submit', { json: { answers: Object.fromEntries(QUESTIONS.map((q) => [q.id, q.answer])) } });
@@ -104,12 +106,12 @@ test('senha do admin é armazenada apenas como hash bcrypt', async () => {
 
 test('cadastro, e-mail duplicado, login com senha errada e senha com hash', async () => {
   const c = client();
-  const reg = await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Ana', email: 'ana@exemplo.com', password: 'Lago#Verde2026', level: 'TEST' } });
+  const reg = await c('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Ana', email: 'ana@exemplo.com', username: 'ana', password: 'Lago#Verde2026', level: 'TEST' } });
   assert.equal(reg.status, 201);
   assert.equal(reg.data.user.role, 'student');
   assert.equal(reg.data.user.level, null);
 
-  const dup = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Ana', email: 'ANA@exemplo.com', password: 'Lago#Verde2026', level: 'TEST' } });
+  const dup = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true,  name: 'Ana', email: 'ANA@exemplo.com', username: 'ana', password: 'Lago#Verde2026', level: 'TEST' } });
   assert.equal(dup.status, 409);
 
   const bad = await client()('POST', '/api/auth/login', { json: { identifier: 'ana@exemplo.com', password: 'errada' } });
