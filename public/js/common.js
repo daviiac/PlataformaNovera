@@ -242,22 +242,26 @@ const Novera = (() => {
     }
 
     /** Atividade pendente: leva o aluno de volta para terminar de onde parou. */
-    function pendingHtml(p) {
+    const activityUrl = (p) => `/atividade?id=${encodeURIComponent(p.key)}`;
+    // No pop-up o "Continuar atividade" fica no rodapé; com mais de uma, o nome de cada uma também leva até ela.
+    function pendingHtml(p, inPopup) {
+      const name = `${esc(p.icon || '')} ${esc(p.title)}`;
+      const linked = inPopup && pending.length > 1;
       return `
         <li class="notif notif-task">
           <div class="notif-main">
-            <strong class="notif-title">⏳ Terminar: ${esc(p.icon || '')} ${esc(p.title)} <span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span></strong>
+            <strong class="notif-title">⏳ Terminar: ${linked ? `<a href="${activityUrl(p)}" data-go>${name}</a>` : name} <span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span></strong>
             <span class="notif-body">${esc(p.typeLabel || 'Atividade')} · ${p.percent}% feito (${p.answered} de ${p.total})</span>
             <span class="t-pend-bar" aria-hidden="true"><span data-w="${p.percent}"></span></span>
           </div>
-          <div class="notif-actions">
-            <a class="btn btn-sm" href="/atividade?id=${encodeURIComponent(p.key)}" data-go>Continuar →</a>
-          </div>
+          ${inPopup ? '' : `<div class="notif-actions">
+            <a class="btn btn-sm btn-go" href="${activityUrl(p)}" data-go>Continuar →</a>
+          </div>`}
         </li>`;
     }
-    const pendingSection = () => (pending.length ? `
+    const pendingSection = (inPopup = false) => (pending.length ? `
       <p class="notif-section">${pending.length === 1 ? '1 atividade para terminar' : `${pending.length} atividades para terminar`}</p>
-      <ul class="notif-list">${pending.map(pendingHtml).join('')}</ul>` : '');
+      <ul class="notif-list">${pending.map((p) => pendingHtml(p, inPopup)).join('')}</ul>` : '');
     const fillBars = (root) => root.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
 
     function paintBadge() {
@@ -376,9 +380,13 @@ const Novera = (() => {
         pending.length ? 'Volte e termine as atividades de onde parou: elas saem daqui quando você termina.' : '',
         news.length ? 'As notificações ficam aqui até você marcar como lidas.' : '',
       ].filter(Boolean).join(' ') + ' Pode fechar e continuar usando a plataforma normalmente.';
-      popup.querySelector('.notif-pop-body').innerHTML = pendingSection()
+      popup.querySelector('.notif-pop-body').innerHTML = pendingSection(true)
         + (news.length ? `${pending.length ? '<p class="notif-section">Notificações</p>' : ''}<ul class="notif-list">${news.map((n) => itemHtml(n, 'popup')).join('')}</ul>` : '');
       popup.querySelector('[data-read-all]').hidden = !news.length;
+      // Botão verde: continua a atividade mais recente.
+      const go = popup.querySelector('[data-continue]');
+      go.hidden = !pending.length;
+      if (pending.length) go.href = activityUrl(pending[0]);
       fillBars(popup);
     }
     function closePopup() {
@@ -399,8 +407,11 @@ const Novera = (() => {
           <p class="small muted notif-pop-hint"></p>
           <div class="notif-pop-body"></div>
           <div class="notif-pop-actions">
-            <button type="button" class="btn btn-ghost" data-later>Fechar e continuar</button>
-            <button type="button" class="btn" data-read-all>✓ Marcar todas como lidas</button>
+            <button type="button" class="btn btn-ghost" data-later>Fechar</button>
+            <div class="notif-pop-right">
+              <button type="button" class="btn btn-ghost" data-read-all>✓ Marcar todas como lidas</button>
+              <a class="btn btn-go" href="/" data-go data-continue>Continuar atividade →</a>
+            </div>
           </div>
         </div>`;
       document.body.appendChild(popup);
