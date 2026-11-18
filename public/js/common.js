@@ -212,6 +212,8 @@ const Novera = (() => {
   const Notifications = (() => {
     let items = [];
     let unread = 0;
+    let pending = []; // atividades começadas e não terminadas (só aluno); somem ao terminar
+    let isStudent = false;
     let started = false;
     let panel = null;
 
@@ -239,21 +241,48 @@ const Novera = (() => {
         </li>`;
     }
 
+    /** Atividade pendente: leva o aluno de volta para terminar de onde parou. */
+    function pendingHtml(p) {
+      return `
+        <li class="notif notif-task">
+          <div class="notif-main">
+            <strong class="notif-title">⏳ Terminar: ${esc(p.icon || '')} ${esc(p.title)} <span class="level-badge level-${esc(p.level)}">${esc(p.level)}</span></strong>
+            <span class="notif-body">${esc(p.typeLabel || 'Atividade')} · ${p.percent}% feito (${p.answered} de ${p.total})</span>
+            <span class="t-pend-bar" aria-hidden="true"><span data-w="${p.percent}"></span></span>
+          </div>
+          <div class="notif-actions">
+            <a class="btn btn-sm" href="/atividade?id=${encodeURIComponent(p.key)}" data-go>Continuar →</a>
+          </div>
+        </li>`;
+    }
+    const pendingSection = () => (pending.length ? `
+      <p class="notif-section">${pending.length === 1 ? '1 atividade para terminar' : `${pending.length} atividades para terminar`}</p>
+      <ul class="notif-list">${pending.map(pendingHtml).join('')}</ul>` : '');
+    const fillBars = (root) => root.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
+
     function paintBadge() {
       const count = document.getElementById('nav-bell-count');
       const bell = document.getElementById('nav-bell');
       if (!count || !bell) return;
-      count.hidden = unread === 0;
-      count.textContent = unread > 99 ? '99+' : String(unread);
-      bell.classList.toggle('has-unread', unread > 0);
-      bell.setAttribute('aria-label', unread ? `Notificações: ${unread} não lida${unread > 1 ? 's' : ''}` : 'Notificações');
+      const total = unread + pending.length;
+      count.hidden = total === 0;
+      count.textContent = total > 99 ? '99+' : String(total);
+      bell.classList.toggle('has-unread', total > 0);
+      const parts = [];
+      if (unread) parts.push(`${unread} não lida${unread > 1 ? 's' : ''}`);
+      if (pending.length) parts.push(`${pending.length} atividade${pending.length > 1 ? 's' : ''} para terminar`);
+      bell.setAttribute('aria-label', parts.length ? `Notificações: ${parts.join(', ')}` : 'Notificações');
     }
 
     async function load() {
       try {
-        const r = await api('/api/notifications');
+        const [r, p] = await Promise.all([
+          api('/api/notifications'),
+          isStudent ? api('/api/activities/pending').catch(() => ({ pending: [] })) : { pending: [] },
+        ]);
         items = r.items;
         unread = r.unread;
+        pending = p.pending || [];
         paintBadge();
         if (panel) paintPanel();
         return true;
@@ -287,14 +316,16 @@ const Novera = (() => {
     }
     function paintPanel() {
       const list = items.length
-        ? `<ul class="notif-list">${items.map((n) => itemHtml(n, 'panel')).join('')}</ul>`
-        : '<p class="notif-empty">Nenhuma notificação por enquanto.</p>';
+        ? `${pending.length ? '<p class="notif-section">Notificações</p>' : ''}<ul class="notif-list">${items.map((n) => itemHtml(n, 'panel')).join('')}</ul>`
+        : (pending.length ? '' : '<p class="notif-empty">Nenhuma notificação por enquanto.</p>');
       panel.innerHTML = `
         <div class="notif-head">
           <strong>Notificações${unread ? ` <span class="notif-pill">${unread} nova${unread > 1 ? 's' : ''}</span>` : ''}</strong>
           ${unread ? '<button type="button" class="link-btn" data-read-all>Marcar todas como lidas</button>' : ''}
         </div>
+        ${pendingSection()}
         ${list}`;
+      fillBars(panel);
     }
     function closePanel() {
       if (!panel) return;
@@ -335,11 +366,20 @@ const Novera = (() => {
     // ---------- pop-up a cada acesso ----------
     let popup = null;
     function paintPopup() {
-      const pend = items.filter((n) => !n.read);
-      if (!pend.length) { closePopup(); return; }
-      popup.querySelector('.notif-pop-title').textContent = pend.length === 1
-        ? '🔔 Você tem 1 notificação' : `🔔 Você tem ${pend.length} notificações`;
-      popup.querySelector('.notif-list').innerHTML = pend.map((n) => itemHtml(n, 'popup')).join('');
+      const news = items.filter((n) => !n.read);
+      if (!news.length && !pending.length) { closePopup(); return; }
+      const parts = [];
+      if (news.length) parts.push(news.length === 1 ? '1 notificação' : `${news.length} notificações`);
+      if (pending.length) parts.push(pending.length === 1 ? '1 atividade para terminar' : `${pending.length} atividades para terminar`);
+      popup.querySelector('.notif-pop-title').textContent = `🔔 Você tem ${parts.join(' e ')}`;
+      popup.querySelector('.notif-pop-hint').textContent = [
+        pending.length ? 'Volte e termine as atividades de onde parou: elas saem daqui quando você termina.' : '',
+        news.length ? 'As notificações ficam aqui até você marcar como lidas.' : '',
+      ].filter(Boolean).join(' ') + ' Pode fechar e continuar usando a plataforma normalmente.';
+      popup.querySelector('.notif-pop-body').innerHTML = pendingSection()
+        + (news.length ? `${pending.length ? '<p class="notif-section">Notificações</p>' : ''}<ul class="notif-list">${news.map((n) => itemHtml(n, 'popup')).join('')}</ul>` : '');
+      popup.querySelector('[data-read-all]').hidden = !news.length;
+      fillBars(popup);
     }
     function closePopup() {
       if (!popup) return;
@@ -352,26 +392,32 @@ const Novera = (() => {
       popup.className = 'viewer notif-pop-wrap';
       popup.innerHTML = `
         <div class="card notif-pop" role="dialog" aria-modal="true" aria-labelledby="notif-pop-title">
-          <h2 class="notif-pop-title" id="notif-pop-title"></h2>
-          <p class="small muted">Estas notificações ficam aqui até você marcar como lidas.</p>
-          <ul class="notif-list"></ul>
+          <div class="notif-pop-top">
+            <h2 class="notif-pop-title" id="notif-pop-title"></h2>
+            <button type="button" class="btn btn-ghost btn-icon" data-later aria-label="Fechar">✕</button>
+          </div>
+          <p class="small muted notif-pop-hint"></p>
+          <div class="notif-pop-body"></div>
           <div class="notif-pop-actions">
-            <button type="button" class="btn btn-ghost" data-later>Ver depois</button>
+            <button type="button" class="btn btn-ghost" data-later>Fechar e continuar</button>
             <button type="button" class="btn" data-read-all>✓ Marcar todas como lidas</button>
           </div>
         </div>`;
       document.body.appendChild(popup);
       document.body.classList.add('viewer-open');
       paintPopup();
+      if (!popup) return;
       popup.addEventListener('click', (e) => {
-        if (e.target.closest('[data-later]')) return closePopup();
+        // Fechar (botão ou clique fora do quadro): segue usando a plataforma normalmente.
+        if (e.target === popup || e.target.closest('[data-later]')) return closePopup();
         onAction(e);
       });
       popup.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
-      popup.querySelector('[data-later]').focus();
+      popup.querySelector('.notif-pop-actions [data-later]').focus();
     }
 
     async function start(user) {
+      isStudent = user.role === 'student' && Boolean(user.level);
       const bell = document.getElementById('nav-bell');
       bell?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -388,7 +434,7 @@ const Novera = (() => {
       if (!(await load())) return;
       let seen = null;
       try { seen = sessionStorage.getItem(NOTIF_SEEN_KEY); } catch { /* sem armazenamento */ }
-      if (unread > 0 && seen !== String(user.id)) {
+      if ((unread > 0 || pending.length > 0) && seen !== String(user.id)) {
         try { sessionStorage.setItem(NOTIF_SEEN_KEY, String(user.id)); } catch { /* sem armazenamento */ }
         showPopup();
       }
