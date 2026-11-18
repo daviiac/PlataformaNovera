@@ -137,6 +137,7 @@ app.use('/api/activities', require('./routes/activities'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/teacher', require('./routes/teacher'));
 app.use('/api/homework', require('./routes/homework'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
 
 // ---------- Páginas ----------

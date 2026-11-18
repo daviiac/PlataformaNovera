@@ -235,6 +235,87 @@ test('aluno envia o homework (foto, PDF ou Word) e a professora corrige no Anexo
   for (const f of files) assert.equal(fs.existsSync(path.join(tmp, 'uploads', path.basename(f.stored_name))), false);
 });
 
+test('notificações: sino de cada um, sem repetir, e só somem quando marcadas como lidas', async () => {
+  await db.query('DELETE FROM auth_attempts');
+  const a = await login(ADMIN.user, ADMIN.pass);
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const s = await student('sino.a1@exemplo.com', 'A1');
+  const b2 = await student('sino.b2@exemplo.com', 'B2');
+  const me = (await s('GET', '/api/auth/me')).data.user;
+  const unreadOf = async (who) => (await who('GET', '/api/notifications')).data;
+  assert.equal((await client()('GET', '/api/notifications')).status, 401);
+  assert.equal((await unreadOf(s)).unread, 0);
+
+  // Aula nova publicada: só quem tem o nível recebe; trocar o link depois não avisa de novo.
+  assert.equal((await a('PUT', '/api/admin/lessons/A1/4/link', { json: { url: 'https://www.canva.com/design/DAExemplo4/Chave4/view' } })).status, 200);
+  await a('PUT', '/api/admin/lessons/A1/4/link', { json: { url: 'https://www.canva.com/design/DAExemplo4/Outra4/view' } });
+  let mine = await unreadOf(s);
+  assert.equal(mine.unread, 1);
+  assert.equal(mine.items[0].kind, 'lesson_new');
+  assert.match(mine.items[0].title, /Nova aula disponível: A1 · Aula 04/);
+  assert.equal((await unreadOf(b2)).unread, 0, 'aluno do B2 não recebe aviso do A1');
+
+  // Outro usuário não marca a notificação de ninguém; o dono marca e ela vira "lida".
+  const nid = mine.items[0].id;
+  assert.equal((await b2('POST', `/api/notifications/${nid}/read`)).status, 404);
+  assert.equal((await s('POST', `/api/notifications/${nid}/read`)).status, 200);
+  mine = await unreadOf(s);
+  assert.equal(mine.unread, 0);
+  assert.equal(mine.items.find((n) => n.id === nid).read, true, 'continua no histórico como lida');
+
+  // Mudança de nível pela professora.
+  await t('PATCH', `/api/teacher/students/${me.id}/level`, { json: { level: 'A2' } });
+  mine = await unreadOf(s);
+  assert.equal(mine.items[0].kind, 'level');
+  assert.match(mine.items[0].title, /A1 → A2/);
+  assert.equal(mine.items[0].link, '/trilha?nivel=A2');
+
+  // Envio de homework: a equipe recebe UM aviso, mesmo com vários arquivos.
+  const hw = HOMEWORK.find((h) => h.level === 'A1' && h.lesson === 2);
+  const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(40, 2)]);
+  for (let i = 0; i < 2; i += 1) {
+    const st = await s('POST', `/api/homework/${hw.key}/uploads`, { json: { originalName: `p${i}.jpg`, size: JPG.length } });
+    await s('PUT', st.data.upload.url, { body: JPG, headers: st.data.upload.headers });
+    assert.equal((await s('POST', `/api/homework/uploads/${st.data.id}/finish`)).status, 200);
+  }
+  const staff = (await unreadOf(t)).items.filter((n) => n.kind === 'hw_sent' && !n.read);
+  assert.equal(staff.length, 1, 'um aviso por aluno e homework');
+  assert.equal(staff[0].link, `/professor#anexo=${me.id}`);
+  assert.equal((await unreadOf(a)).items.filter((n) => n.kind === 'hw_sent' && !n.read).length, 1, 'admin também vê');
+
+  // Correção: o aluno é avisado (com o comentário) e o aviso da equipe some (assunto resolvido).
+  await t('POST', `/api/teacher/students/${me.id}/homework/${hw.key}/review`, { json: { verdict: 'redo', note: 'Revise a 2.' } });
+  mine = await unreadOf(s);
+  const review = mine.items.find((n) => n.kind === 'hw_review');
+  assert.match(review.title, /Refazer/);
+  assert.equal(review.body, 'Comentário da professora: Revise a 2.');
+  assert.equal(review.link, `/trilha?nivel=A1#hw=${hw.key}`);
+  assert.equal((await unreadOf(t)).items.filter((n) => n.kind === 'hw_sent' && !n.read).length, 0);
+
+  // Marcar todas como lidas.
+  assert.ok((await unreadOf(s)).unread >= 2);
+  await s('POST', '/api/notifications/read-all');
+  assert.equal((await unreadOf(s)).unread, 0);
+
+  // Cadastro aguardando aprovação: a equipe é avisada; ao aprovar, o aviso some e o aluno ganha as boas-vindas.
+  process.env.SIGNUP_APPROVAL = 'on';
+  try {
+    const reg = await client()('POST', '/api/auth/register', { json: { acceptTerms: true, guardianConsent: true, name: 'Nova Aluna', email: 'nova.sino@exemplo.com', username: 'nova.sino', password: STRONG, level: 'A1' } });
+    assert.equal(reg.data.pending, true);
+    const signup = (await unreadOf(t)).items.find((n) => n.kind === 'signup' && !n.read);
+    assert.match(signup.title, /Nova Aluna/);
+    const pend = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.username === 'nova.sino');
+    await t('POST', `/api/teacher/students/${pend.id}/approve`);
+    assert.equal((await unreadOf(t)).items.some((n) => n.kind === 'signup' && !n.read), false);
+    const nova = await login('nova.sino', STRONG);
+    const welcome = await unreadOf(nova);
+    assert.equal(welcome.unread, 1);
+    assert.equal(welcome.items[0].kind, 'welcome');
+  } finally {
+    process.env.SIGNUP_APPROVAL = 'off';
+  }
+});
+
 test('só a professora (ou admin) muda o nível; aluno vê nível anterior e novo', async () => {
   const s = await student('nivel@exemplo.com', 'A1');
   const me = (await s('GET', '/api/auth/me')).data.user;

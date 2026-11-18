@@ -8,6 +8,7 @@ const {
 
 const PasswordPolicy = require('../../public/js/password-policy');
 const { notifyNewSignup } = require('../notify');
+const notify = require('../notifications');
 
 const router = express.Router();
 
@@ -104,6 +105,10 @@ router.post('/register', registerLimiter, ah(async (req, res) => {
   if (pending) {
     // Aviso por e-mail para a escola (se configurado). Falha no e-mail não impede o cadastro.
     await notifyNewSignup({ name, email, username, level: levelChoice }).catch((err) => console.warn('[aviso de cadastro]', err.message));
+    await notify.notifyStaff({
+      kind: 'signup', title: `🔔 Novo cadastro aguardando aprovação: ${name}`,
+      body: `Login: ${username} · e-mail: ${email}`, link: '/professor', ref: `signup:${user.id}`,
+    });
     return res.status(201).json({ pending: true, message: PENDING_MESSAGE, username });
   }
   await createSession(res, user.id);

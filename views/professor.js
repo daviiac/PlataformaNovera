@@ -693,5 +693,14 @@
     try { localStorage.setItem('novera_t_help', help.open ? 'open' : 'closed'); } catch { /* sem armazenamento */ }
   });
 
-  load();
+  // Link da notificação "fulano enviou o homework": /professor#anexo=<id> abre o Anexo aluno dele.
+  function openFromHash() {
+    const m = /^#anexo=(\d+)$/.exec(location.hash);
+    if (!m || !students.some((s) => s.id === Number(m[1]))) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    openAttachments({ dataset: { id: m[1] } });
+  }
+  window.addEventListener('hashchange', openFromHash);
+
+  load().then(openFromHash);
 })();

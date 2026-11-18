@@ -148,6 +148,7 @@ const Novera = (() => {
   }
 
   async function logout() {
+    try { sessionStorage.removeItem(NOTIF_SEEN_KEY); } catch { /* sem armazenamento */ }
     try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* ignora */ }
     window.location.replace('/');
   }
@@ -178,6 +179,11 @@ const Novera = (() => {
       items.push(link('worksheets', '/atividades?tipo=worksheet', 'Worksheets'));
     }
     if (!isStaff) items.push(link('nivelamento', '/nivelamento', 'Nivelamento'));
+    // Sino de notificações, ao lado do Nivelamento (equipe: no fim do menu).
+    if (!user.mustChangePassword) {
+      items.push(`<button type="button" class="nav-bell" id="nav-bell" aria-haspopup="dialog" aria-expanded="false" aria-label="Notificações">
+        <span aria-hidden="true">🔔</span><span class="nav-bell-count" id="nav-bell-count" hidden></span></button>`);
+    }
     const levelBadge = user.level ? `<span class="level-badge level-${esc(user.level)}">${esc(user.level)}</span>` : '';
     const roleTag = isAdmin ? '<span class="tag">Admin</span>' : isTeacher ? '<span class="tag">Professor(a)</span>' : '';
 
@@ -196,7 +202,203 @@ const Novera = (() => {
     el.querySelector('#logout-btn').addEventListener('click', logout);
     setupDropdown(el.querySelector('.nav-dd'));
     renderFooter();
+    if (!user.mustChangePassword) Notifications.start(user);
   }
+
+  // ------------------------------------------------------------ notificações (sino + pop-up)
+  // Pop-up: aparece a cada acesso (uma vez por aba/sessão do navegador) enquanto houver não lidas.
+  // Uma notificação só some quando a pessoa marca como lida.
+  const NOTIF_SEEN_KEY = 'novera_notif_popup';
+  const Notifications = (() => {
+    let items = [];
+    let unread = 0;
+    let started = false;
+    let panel = null;
+
+    const timeAgo = (v) => {
+      const d = new Date(v);
+      const min = Math.round((Date.now() - d.getTime()) / 60000);
+      if (min < 1) return 'agora';
+      if (min < 60) return `há ${min} min`;
+      if (min < 24 * 60) return `há ${Math.round(min / 60)} h`;
+      return formatDate(v);
+    };
+
+    function itemHtml(n, where) {
+      return `
+        <li class="notif ${n.read ? 'is-read' : ''}" data-id="${n.id}">
+          <div class="notif-main">
+            <strong class="notif-title">${esc(n.title)}</strong>
+            ${n.body ? `<span class="notif-body">${esc(n.body)}</span>` : ''}
+            <span class="notif-time">${n.read ? 'lida · ' : ''}${timeAgo(n.at)}</span>
+          </div>
+          <div class="notif-actions">
+            ${n.link ? `<a class="btn btn-ghost btn-sm" href="${esc(n.link)}" data-go>Ver</a>` : ''}
+            ${n.read ? '' : `<button type="button" class="btn btn-sm" data-read="${n.id}">✓ Marcar como lida</button>`}
+          </div>
+        </li>`;
+    }
+
+    function paintBadge() {
+      const count = document.getElementById('nav-bell-count');
+      const bell = document.getElementById('nav-bell');
+      if (!count || !bell) return;
+      count.hidden = unread === 0;
+      count.textContent = unread > 99 ? '99+' : String(unread);
+      bell.classList.toggle('has-unread', unread > 0);
+      bell.setAttribute('aria-label', unread ? `Notificações: ${unread} não lida${unread > 1 ? 's' : ''}` : 'Notificações');
+    }
+
+    async function load() {
+      try {
+        const r = await api('/api/notifications');
+        items = r.items;
+        unread = r.unread;
+        paintBadge();
+        if (panel) paintPanel();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function markRead(id) {
+      await api(`/api/notifications/${id}/read`, { method: 'POST' });
+      const n = items.find((x) => x.id === id);
+      if (n && !n.read) { n.read = true; unread = Math.max(0, unread - 1); }
+      paintBadge();
+    }
+    async function markAll() {
+      await api('/api/notifications/read-all', { method: 'POST' });
+      items.forEach((n) => { n.read = true; });
+      unread = 0;
+      paintBadge();
+    }
+
+    // ---------- painel do sino ----------
+    function placePanel() {
+      const bell = document.getElementById('nav-bell');
+      if (!panel || !bell) return;
+      const r = bell.getBoundingClientRect();
+      const w = Math.min(380, window.innerWidth - 16);
+      panel.style.width = `${w}px`;
+      panel.style.top = `${Math.round(r.bottom + 8)}px`;
+      panel.style.left = `${Math.round(Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)))}px`;
+    }
+    function paintPanel() {
+      const list = items.length
+        ? `<ul class="notif-list">${items.map((n) => itemHtml(n, 'panel')).join('')}</ul>`
+        : '<p class="notif-empty">Nenhuma notificação por enquanto.</p>';
+      panel.innerHTML = `
+        <div class="notif-head">
+          <strong>Notificações${unread ? ` <span class="notif-pill">${unread} nova${unread > 1 ? 's' : ''}</span>` : ''}</strong>
+          ${unread ? '<button type="button" class="link-btn" data-read-all>Marcar todas como lidas</button>' : ''}
+        </div>
+        ${list}`;
+    }
+    function closePanel() {
+      if (!panel) return;
+      panel.remove();
+      panel = null;
+      document.getElementById('nav-bell')?.setAttribute('aria-expanded', 'false');
+    }
+    function openPanel() {
+      panel = document.createElement('div');
+      panel.className = 'notif-panel';
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-label', 'Notificações');
+      paintPanel();
+      document.body.appendChild(panel);
+      placePanel();
+      document.getElementById('nav-bell').setAttribute('aria-expanded', 'true');
+      panel.addEventListener('click', onAction);
+      load();
+    }
+
+    async function onAction(e) {
+      // "Ver" leva ao assunto (e fecha o pop-up/painel); continua não lida até marcar.
+      if (e.target.closest('[data-go]')) { closePopup(); closePanel(); return; }
+      const one = e.target.closest('[data-read]');
+      const all = e.target.closest('[data-read-all]');
+      if (!one && !all) return;
+      e.preventDefault();
+      try {
+        if (one) await markRead(Number(one.dataset.read));
+        else await markAll();
+      } catch (err) {
+        toast(err.message);
+      }
+      if (panel) paintPanel();
+      if (popup) paintPopup();
+    }
+
+    // ---------- pop-up a cada acesso ----------
+    let popup = null;
+    function paintPopup() {
+      const pend = items.filter((n) => !n.read);
+      if (!pend.length) { closePopup(); return; }
+      popup.querySelector('.notif-pop-title').textContent = pend.length === 1
+        ? '🔔 Você tem 1 notificação' : `🔔 Você tem ${pend.length} notificações`;
+      popup.querySelector('.notif-list').innerHTML = pend.map((n) => itemHtml(n, 'popup')).join('');
+    }
+    function closePopup() {
+      if (!popup) return;
+      popup.remove();
+      popup = null;
+      document.body.classList.remove('viewer-open');
+    }
+    function showPopup() {
+      popup = document.createElement('div');
+      popup.className = 'viewer notif-pop-wrap';
+      popup.innerHTML = `
+        <div class="card notif-pop" role="dialog" aria-modal="true" aria-labelledby="notif-pop-title">
+          <h2 class="notif-pop-title" id="notif-pop-title"></h2>
+          <p class="small muted">Estas notificações ficam aqui até você marcar como lidas.</p>
+          <ul class="notif-list"></ul>
+          <div class="notif-pop-actions">
+            <button type="button" class="btn btn-ghost" data-later>Ver depois</button>
+            <button type="button" class="btn" data-read-all>✓ Marcar todas como lidas</button>
+          </div>
+        </div>`;
+      document.body.appendChild(popup);
+      document.body.classList.add('viewer-open');
+      paintPopup();
+      popup.addEventListener('click', (e) => {
+        if (e.target.closest('[data-later]')) return closePopup();
+        onAction(e);
+      });
+      popup.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
+      popup.querySelector('[data-later]').focus();
+    }
+
+    async function start(user) {
+      const bell = document.getElementById('nav-bell');
+      bell?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (panel) closePanel(); else openPanel();
+      });
+      paintBadge();
+      if (started) return;
+      started = true;
+      document.addEventListener('click', (e) => {
+        if (panel && !panel.contains(e.target) && !e.target.closest('#nav-bell')) closePanel();
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+      window.addEventListener('resize', placePanel);
+      if (!(await load())) return;
+      let seen = null;
+      try { seen = sessionStorage.getItem(NOTIF_SEEN_KEY); } catch { /* sem armazenamento */ }
+      if (unread > 0 && seen !== String(user.id)) {
+        try { sessionStorage.setItem(NOTIF_SEEN_KEY, String(user.id)); } catch { /* sem armazenamento */ }
+        showPopup();
+      }
+      // Atualiza o sino de tempos em tempos e ao voltar para a aba.
+      setInterval(() => { if (document.visibilityState === 'visible') load(); }, 90 * 1000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
+    }
+
+    return { start, reload: load };
+  })();
 
   /** Rodapé com os Termos de uso / Privacidade e os Termos do YouTube (exigência do YouTube). */
   function renderFooter() {
@@ -402,6 +604,6 @@ const Novera = (() => {
 
   return {
     api, ApiError, currentUser, requireUser, queueAttempt, showPendingBanner, homeFor, esc, formatBytes, formatDate, logout, renderTopbar, toast,
-    KIND_LABEL, iconLabel, openViewer, BRAND_INNER,
+    KIND_LABEL, iconLabel, openViewer, BRAND_INNER, Notifications,
   };
 })();

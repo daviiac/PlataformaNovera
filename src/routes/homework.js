@@ -21,6 +21,7 @@ const {
 } = require('../storage');
 const { canPreview, buildPreviewPage } = require('../preview');
 const { MAX_FILES_PER_HOMEWORK, submissionsOf, cleanupStale } = require('../homework');
+const notify = require('../notifications');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -127,6 +128,13 @@ router.post('/uploads/:id/finish', ah(async (req, res) => {
   }
   await storage.replace(up.stored_name, buffer, SUBMISSION_TYPES[ext].mime);
   await db.query("UPDATE homework_uploads SET status = 'sent', size_bytes = $1, created_at = now() WHERE id = $2", [buffer.length, up.id]);
+  const hw = HOMEWORK_BY_KEY.get(up.hw_key);
+  if (hw && req.user.role === 'student') {
+    await notify.notifyStaff({
+      kind: 'hw_sent', title: `📎 ${req.user.name} enviou o homework ${hw.code} — ${hw.title}`,
+      body: 'Abra o Anexo aluno para corrigir.', link: `/professor#anexo=${req.user.id}`, ref: `hw-sent:${req.user.id}:${hw.key}`,
+    });
+  }
   res.json(await state(req.user.id, up.hw_key));
 }));
 

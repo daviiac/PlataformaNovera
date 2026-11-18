@@ -13,6 +13,7 @@ const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
 const { ORDER, levelHistory, unlockedLevels } = require('../levels');
 const { HOMEWORK, HOMEWORK_BY_KEY } = require('../lessons/catalog');
 const { submissionsOf, removeAllFiles } = require('../homework');
+const notify = require('../notifications');
 
 const router = express.Router();
 router.use(requireTeacher);
@@ -208,6 +209,11 @@ router.patch('/students/:id/level', ah(async (req, res) => {
   await db.query('INSERT INTO level_changes (user_id, from_level, to_level, changed_by) VALUES ($1, $2, $3, $4)',
     [id, student.level, level, req.user.id]);
   const unlocked = await unlockedLevels({ id, role: 'student', level });
+  await notify.notifyUser(id, {
+    kind: 'level', title: `🎉 Seu nível mudou: ${student.level || 'sem nível'} → ${level}`,
+    body: 'A professora mudou o seu nível. As aulas e atividades do novo nível já estão liberadas.',
+    link: `/trilha?nivel=${level}`, ref: 'level',
+  });
   res.json({ ok: true, from: student.level, to: level, unlocked });
 }));
 
@@ -332,6 +338,12 @@ router.post('/students/:id/approve', ah(async (req, res) => {
   // Quem tentou entrar várias vezes enquanto esperava pode ter ficado bloqueado: libera na hora.
   await clearAccountLimits(row.email);
   if (row.username) await clearAccountLimits(row.username);
+  await notify.resolve(`signup:${row.id}`);
+  await notify.notifyUser(row.id, {
+    kind: 'welcome', title: '👋 Bem-vindo(a) à Plataforma Novera! Seu cadastro foi aprovado.',
+    body: 'Comece pela sua trilha de aulas. Quando houver novidades (homework corrigido, aula nova, mudança de nível), elas aparecem aqui no sino.',
+    link: '/trilha', ref: 'welcome',
+  });
   res.json({ ok: true, student: row });
 }));
 
@@ -372,6 +384,13 @@ router.post('/students/:id/homework/:key/review', ah(async (req, res) => {
     ON CONFLICT (user_id, hw_key) DO UPDATE SET verdict = EXCLUDED.verdict, note = EXCLUDED.note,
       reviewed_by = EXCLUDED.reviewed_by, reviewed_at = now()`,
   [id, hw.key, verdict, note, req.user.id]);
+  await notify.resolve(`hw-sent:${id}:${hw.key}`);
+  await notify.notifyUser(id, {
+    kind: 'hw_review',
+    title: verdict === 'correct' ? `✅ Homework corrigido: ${hw.code} — ${hw.title} está correto!` : `🔁 Refazer o homework ${hw.code} — ${hw.title}`,
+    body: note ? `Comentário da professora: ${note}` : (verdict === 'correct' ? 'Muito bem!' : 'Confira, refaça e envie de novo.'),
+    link: `/trilha?nivel=${hw.level}#hw=${hw.key}`, ref: `hw-review:${hw.key}`,
+  });
   res.json({ key: hw.key, ...(await submissionsOf(id, [hw.key])).get(hw.key) });
 }));
 
@@ -380,6 +399,7 @@ router.delete('/students/:id', ah(async (req, res) => {
   // Fotos e arquivos de homework do aluno saem do armazenamento junto com o cadastro.
   if (Number.isInteger(id) && await db.one("SELECT 1 FROM users WHERE id = $1 AND role = 'student'", [id])) {
     await removeAllFiles(id);
+    await notify.resolveStudent(id);
   }
   const removed = Number.isInteger(id)
     ? await db.one("DELETE FROM users WHERE id = $1 AND role = 'student' RETURNING id, name", [id])

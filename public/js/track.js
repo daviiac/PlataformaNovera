@@ -434,6 +434,17 @@
   });
 
   // ------------------------------------------------------------ carregar nível
+  // Link da notificação (ex.: homework corrigido): /trilha?nivel=B2#hw=<chave> abre o homework.
+  function openHomeworkFromHash() {
+    const m = /^#hw=([a-z0-9-]+)$/.exec(location.hash);
+    if (!m) return;
+    const lesson = lessons.find((l) => l.homework.some((h) => h.key === m[1]));
+    if (!lesson) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    openHomework(lesson);
+  }
+  window.addEventListener('hashchange', openHomeworkFromHash);
+
   async function load() {
     document.querySelector('.space').className = `space lv-${current}`;
     document.querySelector('.lesson-map').className = `lesson-map lv-${current}`;
@@ -450,6 +461,7 @@
       $('map-level-name').textContent = NAMES[current];
       lessons = map.lessons;
       renderMap();
+      openHomeworkFromHash();
 
       extraMaterials = extras.modules.flatMap((m) => m.materials);
       const withMat = extras.modules.filter((m) => m.materials.length);

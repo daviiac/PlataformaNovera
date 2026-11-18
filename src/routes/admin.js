@@ -7,6 +7,7 @@ const { isLevel } = require('../tracks');
 const { storage, ALLOWED, MAX_BYTES, extOf, isValidObjectPath, newObjectPath } = require('../storage');
 const { materialDto, moduleDto } = require('../dto');
 const config = require('../config');
+const notify = require('../notifications');
 
 const router = express.Router();
 
@@ -175,6 +176,10 @@ router.post('/activities', ah(async (req, res) => {
     'INSERT INTO activities (type, level, title, description, data, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
     [a.type, a.level, a.title, a.description, JSON.stringify(a.data), req.user.id],
   );
+  await notify.notifyLevel(a.level, {
+    kind: 'activity_new', title: `🧩 Nova atividade ${a.level}: ${a.title}`, body: a.description || '',
+    link: `/atividades?tipo=${encodeURIComponent(a.type)}`, ref: `activity:a-${row.id}`,
+  });
   res.status(201).json({ ok: true, key: `a-${row.id}` });
 }));
 
@@ -221,10 +226,18 @@ router.put('/lessons/:level/:n/link', ah(async (req, res) => {
   }
   const result = await normalizeLessonUrl(raw);
   if (result.error) return res.status(400).json({ error: result.error });
+  const before = await db.one('SELECT 1 FROM lesson_links WHERE level = $1 AND lesson = $2', [level, n]);
   await db.query(`
     INSERT INTO lesson_links (level, lesson, url, updated_at) VALUES ($1, $2, $3, now())
     ON CONFLICT (level, lesson) DO UPDATE SET url = EXCLUDED.url, updated_at = now()
   `, [level, n, result.url]);
+  if (!before) {
+    const lesson = LESSONS[level].find((l) => l.n === n);
+    await notify.notifyLevel(level, {
+      kind: 'lesson_new', title: `🎞️ Nova aula disponível: ${level} · Aula ${String(n).padStart(2, '0')} — ${lesson.title}`,
+      link: `/trilha?nivel=${level}`, ref: `lesson:${level}-${n}`,
+    });
+  }
   res.json({ ok: true, url: result.url });
 }));
 
@@ -258,6 +271,12 @@ router.post('/homework', ah(async (req, res) => {
       uploaded_by = EXCLUDED.uploaded_by, uploaded_at = now()
   `, [hw.key, objectPath, stat.size, req.user.id]);
   if (old && old.stored_name !== objectPath) await storage.remove(old.stored_name);
+  if (!old) {
+    await notify.notifyLevel(hw.level, {
+      kind: 'hw_new', title: `📚 Novo homework: ${hw.code} — ${hw.title}`, body: hw.description || '',
+      link: `/trilha?nivel=${hw.level}#hw=${hw.key}`, ref: `hw-new:${hw.key}`,
+    });
+  }
   res.status(201).json({ ok: true, key: hw.key, code: hw.code, replaced: Boolean(old) });
 }));
 
