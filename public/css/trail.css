@@ -159,7 +159,22 @@
 .hw-item.soon { opacity: 0.7; }
 .hw-code { font-weight: 800; font-size: 0.78rem; color: #1b1336; background: var(--violet); padding: 0.3rem 0.55rem; border-radius: 8px; white-space: nowrap; }
 .hw-info { display: grid; gap: 0.15rem; min-width: 0; }
-.hw-actions { display: flex; gap: 0.4rem; }
+.hw-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
+/* Envio do homework pelo aluno */
+.btn-upload { background: linear-gradient(135deg, #8a6cf0, #5b8def); color: #fff; cursor: pointer; }
+.btn-upload:focus-within { outline: 2px solid var(--violet); outline-offset: 2px; }
+.btn-upload.is-busy { opacity: 0.6; pointer-events: none; }
+.hw-send { grid-column: 1 / -1; display: grid; gap: 0.35rem; }
+.hw-send:empty { display: none; }
+.hw-status { margin: 0; padding: 0.45rem 0.7rem; border-radius: 10px; font-size: 0.86rem; }
+.hw-status.wait { background: rgba(249, 213, 110, 0.12); border: 1px solid rgba(249, 213, 110, 0.35); }
+.hw-status.ok { background: rgba(126, 214, 165, 0.14); border: 1px solid rgba(126, 214, 165, 0.45); }
+.hw-status.redo { background: rgba(232, 139, 139, 0.14); border: 1px solid rgba(232, 139, 139, 0.45); }
+.hw-note { margin: 0; font-size: 0.86rem; white-space: pre-wrap; }
+.hw-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.86rem; }
+.hw-files a { color: var(--text, #fff); word-break: break-all; }
+.hw-progress { margin: 0; color: var(--violet); }
+.hw-progress:empty { display: none; }
 
 @media (max-width: 760px) {
   .space-content { padding: 1.4rem 1.1rem 1.2rem; }
@@ -169,4 +184,6 @@
   .map-side { text-align: center; }
   .map-brand { text-align: center; }
   .hw-item { grid-template-columns: 1fr; }
+  .hw-actions { justify-content: flex-start; }
+  .hw-code { justify-self: start; }
 }

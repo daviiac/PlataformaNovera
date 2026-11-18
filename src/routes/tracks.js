@@ -9,6 +9,7 @@ const { LESSONS, HOMEWORK, HOMEWORK_BY_KEY } = require('../lessons/catalog');
 const { embedUrl } = require('../lessons/canva');
 const { unlockedLevels, requireUnlocked, levelHistory } = require('../levels');
 const { storage } = require('../storage');
+const { submissionsOf } = require('../homework');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -50,9 +51,11 @@ router.get('/', ah(async (req, res) => {
 router.get('/:level/lessons', requirePlacement, requireUnlocked(), ah(async (req, res) => {
   const level = String(req.params.level).toUpperCase();
   if (!isLevel(level)) return res.status(404).json({ error: 'Trilha não encontrada.' });
-  const [links, files] = await Promise.all([
+  const [links, files, sent] = await Promise.all([
     db.query('SELECT lesson, url FROM lesson_links WHERE level = $1', [level]),
     db.query('SELECT key, size_bytes FROM homework_files'),
+    // Homework que o aluno já enviou e a correção da professora.
+    submissionsOf(req.user.id, HOMEWORK.filter((h) => h.level === level).map((h) => h.key)),
   ]);
   const urlBy = new Map(links.map((l) => [l.lesson, l.url]));
   const fileBy = new Map(files.map((f) => [f.key, f]));
@@ -73,6 +76,7 @@ router.get('/:level/lessons', requirePlacement, requireUnlocked(), ah(async (req
         pages: h.pages,
         available: fileBy.has(h.key),
         size: fileBy.has(h.key) ? Number(fileBy.get(h.key).size_bytes) : null,
+        submission: sent.get(h.key) || null,
       })),
     })),
   });

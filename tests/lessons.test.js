@@ -141,6 +141,100 @@ test('admin publica link da aula e importa homework pelo nome do arquivo', async
   assert.equal((await s('POST', '/api/admin/homework/uploads', { json: { fileName: hw.file, size: 12 } })).status, 403);
 });
 
+test('aluno envia o homework (foto, PDF ou Word) e a professora corrige no Anexo aluno', async () => {
+  await db.query('DELETE FROM auth_attempts');
+  const hw = HOMEWORK.find((h) => h.level === 'A1' && h.lesson === 2); // publicado no teste anterior
+  const unpublished = HOMEWORK.find((h) => h.level === 'A1' && h.lesson === 3);
+  const b2hw = HOMEWORK.find((h) => h.level === 'B2');
+  const s = await student('envio.hw@exemplo.com', 'A1');
+  const me = (await s('GET', '/api/auth/me')).data.user;
+  const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60, 1)]);
+  const PDF = Buffer.from('%PDF-1.7 meu homework respondido');
+
+  const send = async (who, key, name, bytes) => {
+    const start = await who('POST', `/api/homework/${key}/uploads`, { json: { originalName: name, size: bytes.length } });
+    if (start.status !== 201) return start;
+    const put = await who('PUT', start.data.upload.url, { body: bytes, headers: start.data.upload.headers });
+    assert.equal(put.status, 201);
+    return who('POST', `/api/homework/uploads/${start.data.id}/finish`);
+  };
+
+  // Tipos, tamanho, nível e homework publicado.
+  assert.equal((await s('POST', `/api/homework/${hw.key}/uploads`, { json: { originalName: 'virus.exe', size: 10 } })).data.code, 'BAD_TYPE');
+  assert.equal((await s('POST', `/api/homework/${hw.key}/uploads`, { json: { originalName: 'pagina.html', size: 10 } })).data.code, 'BAD_TYPE');
+  assert.equal((await s('POST', `/api/homework/${hw.key}/uploads`, { json: { originalName: 'foto.jpg', size: 11 * 1024 * 1024 } })).data.code, 'TOO_BIG');
+  assert.equal((await s('POST', `/api/homework/${b2hw.key}/uploads`, { json: { originalName: 'foto.jpg', size: 10 } })).status, 403, 'nível bloqueado');
+  assert.equal((await s('POST', `/api/homework/${unpublished.key}/uploads`, { json: { originalName: 'foto.jpg', size: 10 } })).status, 404, 'homework não publicado');
+  assert.equal((await client()('POST', `/api/homework/${hw.key}/uploads`, { json: { originalName: 'foto.jpg', size: 10 } })).status, 401, 'sem login');
+
+  // Página HTML renomeada para .jpg é recusada pelo conteúdo e apagada.
+  const fake = await send(s, hw.key, 'foto.jpg', Buffer.from('<html><script>alert(1)</script></html>'));
+  assert.equal(fake.data.code, 'BAD_CONTENT');
+  assert.equal((await db.one('SELECT COUNT(*)::int AS n FROM homework_uploads WHERE user_id = $1', [me.id])).n, 0);
+
+  // Envia foto e PDF.
+  const one = await send(s, hw.key, 'Página 1.jpg', JPG);
+  assert.equal(one.status, 200);
+  assert.equal(one.data.pending, true, 'aguardando correção');
+  const two = await send(s, hw.key, 'respostas.pdf', PDF);
+  assert.equal(two.data.files.length, 2);
+  assert.deepEqual(two.data.files.map((f) => f.kind), ['image', 'pdf']);
+
+  // Outro aluno não abre nem envia no lugar dele; o dono e a professora abrem.
+  const fileId = two.data.files[1].id;
+  const other = await student('outro.hw@exemplo.com', 'A1');
+  assert.equal((await other('GET', `/api/homework/uploads/${fileId}/file`)).status, 404);
+  assert.equal((await other('DELETE', `/api/homework/uploads/${fileId}`)).status, 404);
+  const mine = await s('GET', `/api/homework/uploads/${fileId}/file?inline=1`);
+  assert.equal(mine.status, 200);
+  assert.equal(mine.data, PDF.toString());
+  assert.equal(mine.headers.get('content-type'), 'application/pdf');
+
+  // Mapa de aulas mostra o envio para o aluno.
+  const map = await s('GET', '/api/tracks/A1/lessons');
+  assert.equal(map.data.lessons[1].homework.find((h) => h.key === hw.key).submission.files.length, 2);
+
+  // Professora: contador "para corrigir", lista na ordem e arquivo.
+  const t = await login(TEACHER.user, TEACHER.pass);
+  const ov = (await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === me.id);
+  assert.deepEqual(ov.homework, { sent: 1, toReview: 1 });
+  const list = await t('GET', `/api/teacher/students/${me.id}/homework`);
+  assert.equal(list.status, 200);
+  assert.equal(list.data.homework[0].key, hw.key);
+  assert.equal(list.data.homework[0].code, hw.code);
+  assert.equal((await t('GET', `/api/homework/uploads/${fileId}/file`)).status, 200, 'professora abre o arquivo');
+  assert.equal((await s('GET', `/api/teacher/students/${me.id}/homework`)).status, 403, 'aluno não usa a rota da professora');
+
+  // Correção.
+  assert.equal((await t('POST', `/api/teacher/students/${me.id}/homework/${hw.key}/review`, { json: { verdict: 'talvez' } })).status, 400);
+  assert.equal((await t('POST', `/api/teacher/students/${me.id}/homework/${unpublished.key}/review`, { json: { verdict: 'correct' } })).status, 404, 'não enviado');
+  const redo = await t('POST', `/api/teacher/students/${me.id}/homework/${hw.key}/review`, { json: { verdict: 'redo', note: 'Refaça a questão 3, <b>por favor</b>.' } });
+  assert.equal(redo.status, 200);
+  assert.equal(redo.data.pending, false);
+  assert.equal(redo.data.review.verdict, 'redo');
+  const seen = await s('GET', `/api/homework/${hw.key}/mine`);
+  assert.equal(seen.data.review.note, 'Refaça a questão 3, <b>por favor</b>.');
+  assert.equal(seen.data.files.every((f) => !f.canRemove), true, 'arquivo corrigido não pode ser removido');
+  assert.equal((await s('DELETE', `/api/homework/uploads/${fileId}`)).data.code, 'ALREADY_REVIEWED');
+
+  // Reenvio depois da correção volta para "aguardando correção"; o arquivo novo pode ser removido.
+  const again = await send(s, hw.key, 'Página 1 refeita.jpg', JPG);
+  assert.equal(again.data.pending, true);
+  assert.deepEqual((await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === me.id).homework, { sent: 1, toReview: 1 });
+  const fresh = again.data.files.find((f) => f.canRemove);
+  const removed = await s('DELETE', `/api/homework/uploads/${fresh.id}`);
+  assert.equal(removed.data.files.length, 2);
+  await send(s, hw.key, 'Página 1 refeita.jpg', JPG);
+  const ok = await t('POST', `/api/teacher/students/${me.id}/homework/${hw.key}/review`, { json: { verdict: 'correct', note: 'Muito bem!' } });
+  assert.equal(ok.data.review.verdict, 'correct');
+  assert.deepEqual((await t('GET', '/api/teacher/overview')).data.students.find((x) => x.id === me.id).homework, { sent: 1, toReview: 0 });
+
+  // Excluir o cadastro apaga os arquivos do armazenamento.
+  const files = await db.query('SELECT stored_name FROM homework_uploads WHERE user_id = $1', [me.id]);
+  assert.equal((await t('DELETE', `/api/teacher/students/${me.id}`)).status, 200);
+  for (const f of files) assert.equal(fs.existsSync(path.join(tmp, 'uploads', path.basename(f.stored_name))), false);
+});
+
 test('só a professora (ou admin) muda o nível; aluno vê nível anterior e novo', async () => {
   const s = await student('nivel@exemplo.com', 'A1');
   const me = (await s('GET', '/api/auth/me')).data.user;

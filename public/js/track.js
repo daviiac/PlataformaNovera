@@ -266,11 +266,45 @@
     downloadUrl: `/api/tracks/homework/${encodeURIComponent(h.key)}/file`,
   });
 
-  function openHomework(lesson) {
-    $('hw-eyebrow').textContent = `${current} · Aula ${String(lesson.number).padStart(2, '0')}`;
-    $('hw-title').textContent = `Home Work — ${lesson.title}`;
-    $('hw-list').innerHTML = lesson.homework.map((h, i) => `
-      <li class="hw-item ${h.available ? '' : 'soon'}">
+  // ---------- envio do homework pelo aluno (foto, PDF ou Word) ----------
+  const HW_ACCEPT = '.jpg,.jpeg,.png,.webp,.heic,.pdf,.doc,.docx,image/*,application/pdf';
+  const HW_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'pdf', 'doc', 'docx'];
+  const HW_MAX_MB = 10;
+  const FILE_ICON = { image: '🖼️', pdf: '📄', document: '📝' };
+
+  /** Link para abrir o arquivo enviado: foto e PDF na tela, Word (.docx) como página, o resto baixa. */
+  const sentFileUrl = (f) => (f.ext === 'docx' ? `/api/homework/uploads/${f.id}/preview`
+    : (f.kind === 'pdf' || (f.kind === 'image' && f.ext !== 'heic')) ? `${f.url}?inline=1` : f.url);
+
+  function submissionHtml(h, i) {
+    const s = h.submission || { files: [], review: null, pending: false };
+    const r = s.review;
+    let status = '';
+    if (s.pending && r) status = '<p class="hw-status wait">⏳ Novo envio aguardando a correção da professora.</p>';
+    else if (s.pending) status = '<p class="hw-status wait">⏳ Enviado! Aguardando a correção da professora.</p>';
+    if (r && !s.pending) {
+      status = r.verdict === 'correct'
+        ? '<p class="hw-status ok">✅ <b>Correto!</b> A professora corrigiu o seu homework.</p>'
+        : '<p class="hw-status redo">🔁 <b>Refazer.</b> Confira o comentário, refaça e envie de novo.</p>';
+    }
+    const note = r && r.note
+      ? `<p class="hw-note"><b>Comentário da professora${r.at ? ` (${formatDate(r.at)})` : ''}:</b> <span></span></p>` : '';
+    const files = s.files.length
+      ? `<ul class="hw-files">${s.files.map((f) => `
+          <li>${FILE_ICON[f.kind] || '📎'} <a href="${esc(sentFileUrl(f))}" target="_blank" rel="noopener">${esc(f.name)}</a>
+            <span class="dim">· ${formatBytes(f.size)} · ${formatDate(f.at)}</span>
+            ${f.canRemove ? `<button type="button" class="link-btn" data-remove-file="${f.id}" data-hw="${i}">remover</button>` : ''}</li>`).join('')}
+        </ul>` : '';
+    return `<div class="hw-send" data-hw-box="${i}">
+        ${status}${note}${files}
+        <p class="hw-progress small" role="status" aria-live="polite"></p>
+      </div>`;
+  }
+
+  function hwItemHtml(h, i) {
+    const sent = h.submission?.files?.length;
+    return `
+      <li class="hw-item ${h.available ? '' : 'soon'}" data-hw-item="${i}">
         <span class="hw-code">${esc(h.code)}</span>
         <div class="hw-info">
           <strong>${esc(h.title)}</strong>
@@ -280,14 +314,86 @@
         <div class="hw-actions">
           ${h.available
             ? `<button type="button" class="btn btn-ghost btn-sm" data-open-hw="${i}">Abrir</button>
-               <a class="btn btn-sm" href="/api/tracks/homework/${encodeURIComponent(h.key)}/file" download>Baixar</a>`
+               <a class="btn btn-sm" href="/api/tracks/homework/${encodeURIComponent(h.key)}/file" download>Baixar</a>
+               ${isStudent ? `<label class="btn btn-sm btn-upload" title="Foto, PDF ou Word (até ${HW_MAX_MB} MB)">📤 ${sent ? 'Enviar mais' : 'Enviar homework'}
+                 <input type="file" accept="${HW_ACCEPT}" multiple hidden data-upload-hw="${i}"></label>` : ''}`
             : '<span class="tag">Em breve</span>'}
         </div>
-      </li>`).join('');
+        ${isStudent && h.available ? submissionHtml(h, i) : ''}
+      </li>`;
+  }
+
+  /** PUT do arquivo com progresso (fetch não informa progresso de envio). */
+  function putFile(upload, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(upload.method || 'PUT', upload.url);
+      Object.entries(upload.headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.upload.addEventListener('progress', (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); });
+      xhr.addEventListener('load', () => (xhr.status >= 200 && xhr.status < 300
+        ? resolve() : reject(new Error(`Falha ao enviar o arquivo (erro ${xhr.status}). Tente de novo.`))));
+      xhr.addEventListener('error', () => reject(new Error('Sem conexão durante o envio. Tente de novo.')));
+      xhr.send(file);
+    });
+  }
+
+  async function sendFiles(lesson, i, fileList) {
+    const h = lesson.homework[i];
+    const files = [...fileList];
+    const box = () => $('hw-list').querySelector(`[data-hw-box="${i}"] .hw-progress`);
+    let ok = 0;
+    for (const [n, file] of files.entries()) {
+      const label = files.length > 1 ? `(${n + 1} de ${files.length}) ` : '';
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (!HW_EXTS.includes(ext)) { toast(`"${file.name}": envie foto, PDF ou Word.`); continue; }
+      if (file.size > HW_MAX_MB * 1024 * 1024) { toast(`"${file.name}" tem mais de ${HW_MAX_MB} MB.`); continue; }
+      try {
+        box().textContent = `${label}Enviando ${file.name}…`;
+        const start = await api(`/api/homework/${encodeURIComponent(h.key)}/uploads`, { method: 'POST', body: { originalName: file.name, size: file.size } });
+        await putFile(start.upload, file, (p) => { box().textContent = `${label}Enviando ${file.name}… ${Math.round(p * 100)}%`; });
+        h.submission = await api(`/api/homework/uploads/${start.id}/finish`, { method: 'POST' });
+        ok += 1;
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+    renderHomeworkList(lesson);
+    if (ok) toast(ok === 1 ? '✅ Homework enviado para a professora!' : `✅ ${ok} arquivos enviados para a professora!`);
+  }
+
+  function renderHomeworkList(lesson) {
+    $('hw-list').innerHTML = lesson.homework.map(hwItemHtml).join('');
+    // Comentário da professora entra como texto (nunca como HTML).
+    lesson.homework.forEach((h, i) => {
+      const span = $('hw-list').querySelector(`[data-hw-box="${i}"] .hw-note span`);
+      if (span) span.textContent = h.submission.review.note;
+    });
+  }
+
+  function openHomework(lesson) {
+    $('hw-eyebrow').textContent = `${current} · Aula ${String(lesson.number).padStart(2, '0')}`;
+    $('hw-title').textContent = `Home Work — ${lesson.title}`;
+    renderHomeworkList(lesson);
     $('hw-overlay').hidden = false;
     document.body.classList.add('viewer-open');
     $('hw-close').focus();
-    $('hw-list').onclick = (e) => {
+    $('hw-list').onchange = (e) => {
+      const input = e.target.closest('[data-upload-hw]');
+      if (!input || !input.files.length) return;
+      sendFiles(lesson, Number(input.dataset.uploadHw), input.files);
+      input.closest('label').classList.add('is-busy');
+    };
+    $('hw-list').onclick = async (e) => {
+      const rm = e.target.closest('[data-remove-file]');
+      if (rm) {
+        const h = lesson.homework[Number(rm.dataset.hw)];
+        if (!confirm('Remover este arquivo? A professora não vai mais vê-lo.')) return;
+        try {
+          h.submission = await api(`/api/homework/uploads/${rm.dataset.removeFile}`, { method: 'DELETE' });
+          renderHomeworkList(lesson);
+        } catch (err) { toast(err.message); }
+        return;
+      }
       const b = e.target.closest('[data-open-hw]');
       if (!b) return;
       const avail = lesson.homework.filter((h) => h.available);

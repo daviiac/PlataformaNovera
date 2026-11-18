@@ -11,6 +11,8 @@ const { ah, requireTeacher, hashPassword, clearAccountLimits, rateLimit } = requ
 const PasswordPolicy = require('../../public/js/password-policy');
 const { TYPES, BUILTIN_BY_KEY } = require('../activities/catalog');
 const { ORDER, levelHistory, unlockedLevels } = require('../levels');
+const { HOMEWORK, HOMEWORK_BY_KEY } = require('../lessons/catalog');
+const { submissionsOf, removeAllFiles } = require('../homework');
 
 const router = express.Router();
 router.use(requireTeacher);
@@ -55,7 +57,7 @@ function pendingDto(p, info) {
 }
 
 router.get('/overview', ah(async (req, res) => {
-  const [students, grouped, placements, progress] = await Promise.all([
+  const [students, grouped, placements, progress, hw] = await Promise.all([
     db.query(`
       SELECT u.id, u.name, u.email, u.username, u.level, u.created_at, u.active, u.deactivated_at, u.approval_pending,
              lc.from_level AS previous_level, lc.created_at AS level_changed_at
@@ -78,11 +80,20 @@ router.get('/overview', ah(async (req, res) => {
       FROM placement_results GROUP BY user_id
     `),
     db.query('SELECT user_id, activity_key, answered, correct, total, updated_at FROM activity_progress ORDER BY updated_at DESC'),
+    // Homeworks enviados por aluno e quantos aguardam correção (arquivo novo depois da última correção).
+    db.query(`
+      SELECT f.user_id, COUNT(DISTINCT f.hw_key)::int AS sent,
+             COUNT(DISTINCT f.hw_key) FILTER (WHERE r.reviewed_at IS NULL OR f.created_at > r.reviewed_at)::int AS to_review
+      FROM homework_uploads f
+      LEFT JOIN homework_reviews r ON r.user_id = f.user_id AND r.hw_key = f.hw_key
+      WHERE f.status = 'sent' GROUP BY f.user_id`),
   ]);
+  const hwBy = new Map(hw.map((h) => [h.user_id, h]));
 
   const index = await activityIndex([...new Set([...grouped, ...progress].map((g) => g.activity_key))]);
   const byUser = new Map(students.map((s) => [s.id, {
     ...s, categories: {}, done: 0, hits: 0, misses: 0, attempts: 0, lastAt: null, pending: [],
+    homework: { sent: hwBy.get(s.id)?.sent || 0, toReview: hwBy.get(s.id)?.to_review || 0 },
   }]));
 
   // Atividades começadas e não terminadas, com o percentual já respondido.
@@ -328,8 +339,48 @@ router.post('/students/:id/approve', ah(async (req, res) => {
  * Exclui o cadastro do aluno de vez: conta, resultados das atividades, nivelamentos e histórico
  * de nível (apagados em cascata pelo banco). Não dá para desfazer.
  */
+/**
+ * Anexos do aluno: homeworks que ele enviou, na ordem das aulas (código e título), com os
+ * arquivos e a correção. Os que aguardam correção vêm marcados.
+ */
+router.get('/students/:id/homework', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const student = Number.isInteger(id)
+    ? await db.one("SELECT id, name, username, email, level FROM users WHERE id = $1 AND role = 'student'", [id])
+    : null;
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado.' });
+  const byKey = await submissionsOf(id);
+  const items = HOMEWORK.filter((h) => byKey.has(h.key)).map((h) => ({
+    key: h.key, code: h.code, title: h.title, level: h.level, lesson: h.lesson, ...byKey.get(h.key),
+  }));
+  res.json({ student, homework: items });
+}));
+
+/** Correção: "correct" (fez certo) ou "redo" (refazer), com comentário opcional para o aluno. */
+router.post('/students/:id/homework/:key/review', ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const hw = HOMEWORK_BY_KEY.get(String(req.params.key));
+  const verdict = req.body?.verdict;
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 1000) : '';
+  if (!['correct', 'redo'].includes(verdict)) return res.status(400).json({ error: 'Escolha "Correto" ou "Refazer".' });
+  const student = Number.isInteger(id) ? await db.one("SELECT id FROM users WHERE id = $1 AND role = 'student'", [id]) : null;
+  if (!student || !hw) return res.status(404).json({ error: 'Homework não encontrado.' });
+  const sent = await db.one("SELECT 1 FROM homework_uploads WHERE user_id = $1 AND hw_key = $2 AND status = 'sent' LIMIT 1", [id, hw.key]);
+  if (!sent) return res.status(404).json({ error: 'O aluno ainda não enviou este homework.' });
+  await db.query(`
+    INSERT INTO homework_reviews (user_id, hw_key, verdict, note, reviewed_by, reviewed_at) VALUES ($1, $2, $3, $4, $5, now())
+    ON CONFLICT (user_id, hw_key) DO UPDATE SET verdict = EXCLUDED.verdict, note = EXCLUDED.note,
+      reviewed_by = EXCLUDED.reviewed_by, reviewed_at = now()`,
+  [id, hw.key, verdict, note, req.user.id]);
+  res.json({ key: hw.key, ...(await submissionsOf(id, [hw.key])).get(hw.key) });
+}));
+
 router.delete('/students/:id', ah(async (req, res) => {
   const id = Number(req.params.id);
+  // Fotos e arquivos de homework do aluno saem do armazenamento junto com o cadastro.
+  if (Number.isInteger(id) && await db.one("SELECT 1 FROM users WHERE id = $1 AND role = 'student'", [id])) {
+    await removeAllFiles(id);
+  }
   const removed = Number.isInteger(id)
     ? await db.one("DELETE FROM users WHERE id = $1 AND role = 'student' RETURNING id, name", [id])
     : null;

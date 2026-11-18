@@ -26,7 +26,9 @@
     const pendingTotal = students.reduce((n, s) => n + (s.pending?.length || 0), 0);
     const pendingStudents = students.filter((s) => s.pending?.length).length;
     const g = pct(H, M);
+    const toReview = students.reduce((n, s) => n + (s.homework?.toReview || 0), 0);
     $('t-stats').innerHTML = `
+      <div class="t-stat"><strong class="${toReview ? 't-warn' : ''}">${toReview}</strong><span>homework${toReview === 1 ? '' : 's'} para corrigir (📎 Anexo aluno)</span></div>
       <div class="t-stat"><strong>${students.length}</strong><span>alunos cadastrados${inactive ? ` (${students.length - inactive} ativos · ${inactive} inativo${inactive > 1 ? 's' : ''})` : ''}</span></div>
       <div class="t-stat"><strong>${practiced.length}</strong><span>já fizeram atividades</span></div>
       <div class="t-stat"><strong>${totalAttempts}</strong><span>atividades realizadas</span></div>
@@ -204,6 +206,7 @@
           <button type="button" class="btn btn-sm" data-save-level>Alterar nível</button>
           <button type="button" class="btn btn-ghost btn-sm" data-reset-pw title="Gera uma senha provisória para o aluno">🔑 Redefinir senha</button>
           <button type="button" class="btn btn-ghost btn-sm" data-set-pw title="Você escolhe o login e a senha do aluno">✏️ Definir login e senha</button>
+          <button type="button" class="btn ${s.homework?.toReview ? '' : 'btn-ghost '}btn-sm" data-attachments title="Homeworks que o aluno enviou: ver e corrigir">📎 Anexo aluno${s.homework?.sent ? ` <span class="t-count${s.homework.toReview ? ' warn' : ''}">${s.homework.toReview ? `${s.homework.toReview} para corrigir` : s.homework.sent}</span>` : ''}</button>
         </div>
         <div class="t-access">
           <span class="small"><b>Acesso:</b> ${off
@@ -283,6 +286,111 @@
     document.body.classList.add('viewer-open');
     document.body.appendChild(el);
     el.querySelector('[data-copy="pw"]').focus();
+  }
+
+  // ------------------------------------------------------------ anexo aluno (homeworks enviados)
+  const FILE_ICON = { image: '🖼️', pdf: '📄', document: '📝' };
+  /** Foto e PDF abrem na tela, Word (.docx) como página; .doc e HEIC baixam. */
+  const fileView = (f) => (f.ext === 'docx' ? `/api/homework/uploads/${f.id}/preview`
+    : (f.kind === 'pdf' || (f.kind === 'image' && f.ext !== 'heic')) ? `${f.url}?inline=1` : f.url);
+
+  function hwStatus(h) {
+    if (h.pending) return `<span class="tag tag-warn">⏳ ${h.review ? 'Reenviado · ' : ''}aguardando correção</span>`;
+    if (h.review?.verdict === 'correct') return '<span class="tag tag-good">✅ Correto</span>';
+    if (h.review?.verdict === 'redo') return '<span class="tag tag-bad">🔁 Refazer</span>';
+    return '';
+  }
+
+  function attachmentHtml(h, i) {
+    return `
+      <li class="t-hw ${h.pending ? 'is-pending' : ''}" data-i="${i}">
+        <div class="t-hw-head">
+          <span class="hw-code-sm">${esc(h.code)}</span>
+          <strong>${esc(h.title)}</strong>
+          <span class="small dim">Aula ${String(h.lesson).padStart(2, '0')}</span>
+          ${hwStatus(h)}
+        </div>
+        <ul class="t-hw-files">${h.files.map((f) => `
+          <li>
+            ${f.kind === 'image' && f.ext !== 'heic'
+              ? `<a href="${esc(fileView(f))}" target="_blank" rel="noopener" class="t-hw-thumb"><img src="${esc(fileView(f))}" alt="Foto enviada: ${esc(f.name)}" loading="lazy"></a>`
+              : `<span class="t-hw-icon" aria-hidden="true">${FILE_ICON[f.kind] || '📎'}</span>`}
+            <div class="t-hw-file">
+              <a href="${esc(fileView(f))}" target="_blank" rel="noopener">${esc(f.name)}</a>
+              <span class="small dim">${Novera.formatBytes(f.size)} · enviado ${dateTime(f.at)}</span>
+              <a class="small" href="${esc(f.url)}" download>Baixar</a>
+            </div>
+          </li>`).join('')}
+        </ul>
+        ${h.review ? `<p class="small dim">Última correção: ${h.review.verdict === 'correct' ? 'Correto' : 'Refazer'} · ${dateTime(h.review.at)}${h.review.by ? ` · ${esc(h.review.by)}` : ''}</p>` : ''}
+        <label class="small" for="t-hw-note-${i}">Comentário para o aluno (opcional)</label>
+        <textarea id="t-hw-note-${i}" class="t-hw-note" rows="2" maxlength="1000" placeholder="Ex.: Muito bem! Atenção ao passado do verbo na questão 3."></textarea>
+        <div class="t-hw-actions">
+          <button type="button" class="btn btn-sm t-btn-good" data-verdict="correct">✅ Correto</button>
+          <button type="button" class="btn btn-sm t-btn-bad" data-verdict="redo">🔁 Refazer</button>
+        </div>
+      </li>`;
+  }
+
+  async function openAttachments(art) {
+    const id = Number(art.dataset.id);
+    const s = students.find((x) => x.id === id);
+    const first = s.name.split(' ')[0];
+    const el = document.createElement('div');
+    el.className = 'viewer';
+    el.innerHTML = `
+      <div class="card reset-card t-hw-card" role="dialog" aria-modal="true" aria-labelledby="t-hw-title">
+        <header class="t-hw-top">
+          <h2 id="t-hw-title">📎 Anexo aluno — ${esc(s.name)}</h2>
+          <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Fechar">✕</button>
+        </header>
+        <p class="small muted">Homeworks que ${esc(first)} enviou, na ordem das aulas. Abra os arquivos, corrija e marque <b>Correto</b> ou <b>Refazer</b>. ${esc(first)} vê o resultado e o comentário na tela do homework.</p>
+        <div class="t-hw-body"><p class="small dim">Carregando…</p></div>
+      </div>`;
+    const close = () => { el.remove(); document.body.classList.remove('viewer-open'); render(); };
+    el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    document.body.classList.add('viewer-open');
+    document.body.appendChild(el);
+    el.querySelector('[data-close]').focus();
+
+    let items = [];
+    const body = el.querySelector('.t-hw-body');
+    const paint = () => {
+      body.innerHTML = items.length
+        ? `<ol class="t-hw-list">${items.map(attachmentHtml).join('')}</ol>`
+        : `<p class="small dim">${esc(first)} ainda não enviou nenhum homework.</p>`;
+      // Comentário anterior volta preenchido (como texto, nunca como HTML).
+      items.forEach((h, i) => { body.querySelector(`#t-hw-note-${i}`).value = h.review?.note || ''; });
+    };
+    try {
+      items = (await api(`/api/teacher/students/${id}/homework`)).homework;
+      paint();
+    } catch (err) {
+      body.innerHTML = `<p class="alert alert-error">${esc(err.message)}</p>`;
+    }
+
+    el.addEventListener('click', async (e) => {
+      if (e.target === el || e.target.closest('[data-close]')) return close();
+      const btn = e.target.closest('[data-verdict]');
+      if (!btn) return;
+      const li = btn.closest('.t-hw');
+      const i = Number(li.dataset.i);
+      const h = items[i];
+      li.querySelectorAll('[data-verdict]').forEach((b) => { b.disabled = true; });
+      try {
+        const r = await api(`/api/teacher/students/${id}/homework/${encodeURIComponent(h.key)}/review`, {
+          method: 'POST', body: { verdict: btn.dataset.verdict, note: li.querySelector('.t-hw-note').value },
+        });
+        items[i] = { ...h, ...r };
+        paint();
+        s.homework = { sent: items.length, toReview: items.filter((x) => x.pending).length };
+        renderStats();
+        Novera.toast(btn.dataset.verdict === 'correct' ? `${h.code} marcado como Correto ✓` : `${h.code}: pedido para refazer enviado ✓`);
+      } catch (err) {
+        li.querySelectorAll('[data-verdict]').forEach((b) => { b.disabled = false; });
+        Novera.toast(err.message);
+      }
+    });
   }
 
   // ------------------------------------------------------------ definir senha escolhida
@@ -538,6 +646,8 @@
     if (reset) return resetPassword(reset.closest('.t-student'));
     const setPw = e.target.closest('[data-set-pw]');
     if (setPw) return setPassword(setPw.closest('.t-student'));
+    const att = e.target.closest('[data-attachments]');
+    if (att) return openAttachments(att.closest('.t-student'));
     const toggle = e.target.closest('[data-toggle-active]');
     if (toggle) return toggleActive(toggle.closest('.t-student'));
     const del = e.target.closest('[data-delete]');
