@@ -22,7 +22,7 @@ const site = () => (env('PUBLIC_URL') || 'https://plataformanovera.vercel.app').
 
 const provider = () => (env('GMAIL_USER') && env('GMAIL_APP_PASSWORD') ? 'gmail' : null);
 // O aviso vai para o próprio Gmail da escola.
-const recipient = () => env('GMAIL_USER');
+const recipient = () => clean(env('GMAIL_USER')).toLowerCase();
 const emailConfigured = () => Boolean(provider());
 
 /** "no*****@gmail.com": mostra para a professora para onde vai, sem expor o endereço inteiro. */
@@ -37,13 +37,38 @@ function emailStatus() {
   return { configured: Boolean(p), provider: p, to: p ? maskEmail(recipient()) : null };
 }
 
+const clean = (s) => String(s || '').trim().replace(/^["']+|["']+$/g, '').trim();
+
+/**
+ * Explica em português por que o Gmail recusou, a partir do código que ele responde
+ * (o texto do Google vem junto, sem nenhuma senha).
+ */
+function gmailReason(err) {
+  const r = String(err.response || err.message || '');
+  const google = r.replace(/\s+/g, ' ').slice(0, 160);
+  if (/5\.7\.9|Application-specific password required/i.test(r)) {
+    return 'O Gmail pede uma SENHA DE APP: em GMAIL_APP_PASSWORD foi colocada a senha normal da conta. Crie a senha de app em myaccount.google.com/apppasswords e troque na Vercel.';
+  }
+  if (/5\.7\.14|5\.7\.0.*log in via your web browser|WebLoginRequired/i.test(r)) {
+    return 'O Google bloqueou o acesso por segurança. Entre no Gmail da escola pelo navegador, confirme o aviso de "atividade suspeita" (se aparecer) e tente o teste de novo.';
+  }
+  if (/5\.7\.8|Username and Password not accepted|BadCredentials|Invalid login/i.test(r) || err.code === 'EAUTH') {
+    return `O Gmail não aceitou o e-mail ou a senha de app. Confira: (1) GMAIL_USER é exatamente o Gmail onde a senha de app foi criada; (2) a senha de app foi copiada inteira (16 letras); (3) se trocou a senha da conta depois, crie uma senha de app nova. Resposta do Google: ${google}`;
+  }
+  if (err.code === 'ETIMEDOUT' || err.code === 'ECONNECTION' || err.code === 'ESOCKET') {
+    return 'Não foi possível conectar ao Gmail agora (tempo esgotado). Tente de novo em alguns minutos.';
+  }
+  return `Falha ao enviar pelo Gmail: ${google}`;
+}
+
 let transport = null;
 function gmailTransport() {
   if (!transport) {
     const nodemailer = require('nodemailer');
     transport = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
-      auth: { user: env('GMAIL_USER'), pass: env('GMAIL_APP_PASSWORD').replace(/\s+/g, '') },
+      // Aceita a senha de app colada com espaços ou entre aspas; e-mail sempre em minúsculas.
+      auth: { user: clean(env('GMAIL_USER')).toLowerCase(), pass: clean(env('GMAIL_APP_PASSWORD')).replace(/\s+/g, '') },
       connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000,
     });
   }
@@ -55,15 +80,12 @@ async function sendToSchool({ subject, text, html }) {
   if (!provider()) return { sent: false, reason: 'não configurado' };
   try {
     await gmailTransport().sendMail({
-      from: { name: 'Plataforma Novera', address: env('GMAIL_USER') },
+      from: { name: 'Plataforma Novera', address: recipient() },
       to: recipient(), subject, text, html,
     });
   } catch (err) {
     transport = null;
-    if (err.code === 'EAUTH' || /Invalid login|Username and Password/i.test(err.message)) {
-      throw new Error('O Gmail recusou o login: confira o GMAIL_USER e a senha de app (GMAIL_APP_PASSWORD) na Vercel.');
-    }
-    throw new Error(`Falha ao enviar pelo Gmail: ${err.message}`);
+    throw new Error(gmailReason(err));
   }
   return { sent: true, provider: 'gmail' };
 }
@@ -101,4 +123,4 @@ function sendTestEmail(byName) {
   return sendToSchool({ subject: 'Plataforma Novera: teste do aviso por e-mail', text, html });
 }
 
-module.exports = { notifyNewSignup, sendTestEmail, emailConfigured, emailStatus, maskEmail };
+module.exports = { notifyNewSignup, sendTestEmail, emailConfigured, emailStatus, maskEmail, gmailReason };

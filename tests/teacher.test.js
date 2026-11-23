@@ -576,6 +576,13 @@ test('aviso por e-mail: sem configuração não envia e não quebra o cadastro; 
     delete process.env.GMAIL_APP_PASSWORD;
     assert.equal(emailConfigured(), false, 'não existe outro tipo de envio');
     assert.equal(maskEmail('ab@x.com'), 'ab*@x.com');
+
+    // Motivo da recusa do Gmail explicado em português.
+    const { gmailReason } = require('../src/notify');
+    assert.match(gmailReason({ code: 'EAUTH', response: '534-5.7.9 Application-specific password required.' }), /SENHA DE APP/);
+    assert.match(gmailReason({ code: 'EAUTH', response: '535-5.7.8 Username and Password not accepted.' }), /não aceitou o e-mail ou a senha de app/);
+    assert.match(gmailReason({ code: 'EAUTH', response: '534-5.7.14 Please log in via your web browser' }), /bloqueou o acesso/);
+    assert.match(gmailReason({ code: 'ETIMEDOUT', message: 'Connection timeout' }), /tempo esgotado/);
   } finally {
     KEYS.forEach((k) => { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; });
   }
