@@ -701,7 +701,7 @@
     box.hidden = false;
     box.className = `t-email small ${st.configured ? 'on' : 'off'}`;
     box.innerHTML = st.configured
-      ? `✉️ <b>Aviso por e-mail de novos cadastros: ligado</b> <span class="dim">(vai para ${esc(st.to)} pelo ${st.provider === 'gmail' ? 'Gmail' : 'Brevo'})</span>
+      ? `✉️ <b>Aviso por e-mail de novos cadastros: ligado</b> <span class="dim">(vai para ${esc(st.to)})</span>
          <button type="button" class="btn btn-ghost btn-sm" data-email-test>Enviar e-mail de teste</button>`
       : '✉️ <b>Aviso por e-mail de novos cadastros: desligado.</b> <span class="dim">Falta configurar o Gmail na Vercel (GMAIL_USER e GMAIL_APP_PASSWORD). Enquanto isso, os cadastros novos aparecem só aqui e no sino 🔔.</span>';
   }

@@ -565,12 +565,16 @@ test('aviso por e-mail: sem configuração não envia e não quebra o cadastro; 
     assert.equal((await t('POST', '/api/teacher/email-test')).data.code, 'EMAIL_NOT_CONFIGURED');
     assert.equal((await client()('GET', '/api/teacher/email-status')).status, 401, 'só a equipe vê');
 
-    // Com o Gmail configurado: usa o Gmail e manda para o próprio Gmail (endereço mascarado na tela).
+    // Com o Gmail configurado: um único envio, do Gmail da escola para ele mesmo (mascarado na tela).
     process.env.GMAIL_USER = 'escola.teste@gmail.com';
     process.env.GMAIL_APP_PASSWORD = 'abcd efgh ijkl mnop';
     assert.deepEqual(emailStatus(), { configured: true, provider: 'gmail', to: 'es**********@gmail.com' });
     process.env.NOTIFY_EMAIL = 'outra@exemplo.com';
-    assert.equal(emailStatus().to, 'ou***@exemplo.com', 'NOTIFY_EMAIL escolhe quem recebe');
+    assert.equal(emailStatus().to, 'es**********@gmail.com', 'não existe outro destinatário');
+    process.env.BREVO_API_KEY = 'x';
+    process.env.NOTIFY_FROM = 'y@exemplo.com';
+    delete process.env.GMAIL_APP_PASSWORD;
+    assert.equal(emailConfigured(), false, 'não existe outro tipo de envio');
     assert.equal(maskEmail('ab@x.com'), 'ab*@x.com');
   } finally {
     KEYS.forEach((k) => { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; });

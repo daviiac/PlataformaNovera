@@ -6,17 +6,12 @@
  * O e-mail é só um AVISO: a aprovação é feita no Controle Professor(a), com login. O e-mail não
  * tem link de "aprovar", porque leitores de e-mail e antivírus abrem links sozinhos.
  *
- * Como envia (configurado só nas variáveis de ambiente da Vercel, nunca no código):
- *
- *  1) Gmail (recomendado): o e-mail sai pelo próprio Gmail, autenticado pelo Google, então
- *     chega na caixa de entrada e não no spam.
- *       GMAIL_USER          — a conta do Gmail que envia (ex.: a da escola).
- *       GMAIL_APP_PASSWORD  — "senha de app" de 16 letras criada nessa conta (não é a senha normal).
- *  2) Brevo (alternativa):
- *       BREVO_API_KEY, NOTIFY_FROM (remetente verificado no Brevo).
- *
- *   NOTIFY_EMAIL — quem recebe o aviso. Sem ela, vai para o próprio GMAIL_USER.
- *   PUBLIC_URL   — endereço da plataforma, para o link do Controle Professor(a).
+ * Um único envio: a cada cadastro, um e-mail sai do Gmail da escola para o próprio Gmail da
+ * escola (autenticado pelo Google, então chega na caixa de entrada e não no spam).
+ * Configurado só nas variáveis de ambiente da Vercel, nunca no código:
+ *   GMAIL_USER          — o Gmail da escola (envia e recebe o aviso).
+ *   GMAIL_APP_PASSWORD  — "senha de app" de 16 letras criada nessa conta (não é a senha normal).
+ *   PUBLIC_URL          — endereço da plataforma, para o link do Controle Professor(a) (opcional).
  *
  * Sem configuração, não envia nada e o cadastro continua funcionando (aparece no Controle Professor).
  */
@@ -25,12 +20,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const env = (n) => (process.env[n] || '').trim();
 const site = () => (env('PUBLIC_URL') || 'https://plataformanovera.vercel.app').replace(/\/+$/, '');
 
-function provider() {
-  if (env('GMAIL_USER') && env('GMAIL_APP_PASSWORD')) return 'gmail';
-  if (env('BREVO_API_KEY') && env('NOTIFY_FROM') && env('NOTIFY_EMAIL')) return 'brevo';
-  return null;
-}
-const recipient = () => env('NOTIFY_EMAIL') || env('GMAIL_USER');
+const provider = () => (env('GMAIL_USER') && env('GMAIL_APP_PASSWORD') ? 'gmail' : null);
+// O aviso vai para o próprio Gmail da escola.
+const recipient = () => env('GMAIL_USER');
 const emailConfigured = () => Boolean(provider());
 
 /** "no*****@gmail.com": mostra para a professora para onde vai, sem expor o endereço inteiro. */
@@ -60,35 +52,20 @@ function gmailTransport() {
 
 /** Envia um e-mail para a escola. Lança erro com mensagem clara se falhar. */
 async function sendToSchool({ subject, text, html }) {
-  const p = provider();
-  if (!p) return { sent: false, reason: 'não configurado' };
-  if (p === 'gmail') {
-    try {
-      await gmailTransport().sendMail({
-        from: { name: 'Plataforma Novera', address: env('GMAIL_USER') },
-        to: recipient(), subject, text, html,
-      });
-    } catch (err) {
-      transport = null;
-      if (err.code === 'EAUTH' || /Invalid login|Username and Password/i.test(err.message)) {
-        throw new Error('O Gmail recusou o login: confira o GMAIL_USER e a senha de app (GMAIL_APP_PASSWORD) na Vercel.');
-      }
-      throw new Error(`Falha ao enviar pelo Gmail: ${err.message}`);
+  if (!provider()) return { sent: false, reason: 'não configurado' };
+  try {
+    await gmailTransport().sendMail({
+      from: { name: 'Plataforma Novera', address: env('GMAIL_USER') },
+      to: recipient(), subject, text, html,
+    });
+  } catch (err) {
+    transport = null;
+    if (err.code === 'EAUTH' || /Invalid login|Username and Password/i.test(err.message)) {
+      throw new Error('O Gmail recusou o login: confira o GMAIL_USER e a senha de app (GMAIL_APP_PASSWORD) na Vercel.');
     }
-    return { sent: true, provider: p };
+    throw new Error(`Falha ao enviar pelo Gmail: ${err.message}`);
   }
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': env('BREVO_API_KEY'), 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      sender: { email: env('NOTIFY_FROM'), name: 'Plataforma Novera' },
-      to: [{ email: recipient() }],
-      subject, htmlContent: html, textContent: text,
-    }),
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) throw new Error(`Falha ao enviar pelo Brevo (erro ${res.status}).`);
-  return { sent: true, provider: p };
+  return { sent: true, provider: 'gmail' };
 }
 
 const wrap = (inner) => `<div style="font-family:Arial,sans-serif;font-size:15px;color:#222">${inner}</div>`;
