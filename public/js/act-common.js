@@ -58,12 +58,34 @@ const Act = (() => {
   const synth = window.speechSynthesis || null;
   let voicesCache = null;
 
+  // Vozes "de brincadeira" ou muito robóticas que alguns aparelhos (Mac/iPhone) trazem.
+  const ROBOTIC = /albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|junior|pipe organ|organ|trinoids|whisper|zarvox|fred|ralph|kathy|superstar|grandma|grandpa|rocko|shelley|sandy|flo\b|eddy|reed|jester|wobble|novelty/i;
+
+  /**
+   * Nota da voz: quanto mais natural, maior. Prioriza as vozes neurais/naturais
+   * (Edge "Online (Natural)", iPhone "Enhanced/Premium", Android "network", Google do Chrome)
+   * e deixa por último as antigas do Windows e as robóticas.
+   */
+  function voiceScore(v) {
+    const n = v.name;
+    let s = 0;
+    if (/natural|neural|premium|enhanced|siri/i.test(n)) s += 8;
+    if (/online|network/i.test(n)) s += 4;
+    if (/^google/i.test(n)) s += 5;
+    if (/samantha|daniel|karen|moira|serena|ava|allison|evan|nathan|zoe|tom\b/i.test(n)) s += 2; // boas vozes do iPhone/Mac
+    if (/^microsoft (david|zira|mark|hazel|george|susan)\b/i.test(n) && !/natural|online/i.test(n)) s -= 3; // antigas do Windows
+    if (ROBOTIC.test(n)) s -= 20;
+    if (/en[-_]us/i.test(v.lang)) s += 2;
+    else if (/en[-_](gb|au|ca|ie|nz)/i.test(v.lang)) s += 1;
+    if (v.localService === false) s += 1; // vozes da internet costumam soar melhor
+    return s;
+  }
+
   function englishVoices() {
     if (!synth) return [];
-    const all = synth.getVoices().filter((v) => /^en[-_]/i.test(v.lang));
-    // Prioriza vozes naturais / online e en-US.
-    const score = (v) => (/natural|online|neural|google/i.test(v.name) ? 2 : 0) + (/en[-_]us/i.test(v.lang) ? 1 : 0);
-    return all.sort((a, b) => score(b) - score(a));
+    return synth.getVoices()
+      .filter((v) => /^en[-_]/i.test(v.lang) && voiceScore(v) > -10)
+      .sort((a, b) => voiceScore(b) - voiceScore(a));
   }
 
   function voicesReady() {
@@ -77,14 +99,15 @@ const Act = (() => {
     });
   }
 
-  const FEMALE = /female|woman|samantha|zira|aria|jenny|sonia|libby|emma|ava|allison|susan|karen|moira|tessa|serena|victoria|google us english|google uk english female/i;
-  const MALE = /male|man|david|mark|guy|ryan|christopher|eric|daniel|alex|fred|george|oliver|thomas|google uk english male/i;
+  const FEMALE = /female|woman|samantha|zira|aria|jenny|sonia|libby|emma|ava|allison|susan|karen|moira|tessa|serena|victoria|michelle|ana\b|natasha|clara|zoe|google us english|google uk english female/i;
+  const MALE = /\bmale|\bman\b|david|mark|guy|ryan|christopher|eric|daniel|alex|george|oliver|thomas|andrew|brian|steffan|william|evan|nathan|tom\b|google uk english male/i;
 
-  /** Escolhe uma voz feminina ('f') ou masculina ('m'), com alternativa se não houver. */
+  /** Escolhe a melhor voz feminina ('f') ou masculina ('m'); a lista já vem da mais natural para a menos. */
   function pickVoice(voices, gender, fallbackIndex = 0) {
     const re = gender === 'm' ? MALE : FEMALE;
     const other = gender === 'm' ? FEMALE : MALE;
-    return voices.find((v) => re.test(v.name) && !(gender === 'm' && other.test(v.name)))
+    return voices.find((v) => re.test(v.name) && !other.test(v.name.replace(/\bmale\b/i, '')))
+      || voices.find((v) => re.test(v.name))
       || voices[fallbackIndex % Math.max(voices.length, 1)] || null;
   }
 
@@ -143,8 +166,10 @@ const Act = (() => {
     // Com as vozes já carregadas, fala na hora (sem esperar), para valer o toque no celular.
     const voices = voicesCache?.length ? voicesCache : await voicesReady();
     const voice = pickVoice(voices, gender, gender === 'm' ? 1 : 0);
-    // Se só houver uma voz, muda o tom para diferenciar os personagens.
-    const opts = { voice, rate, pitch: pitch ?? (gender === 'm' ? 0.85 : 1.1) };
+    // Tom natural (1.0): mudar o tom deixa a voz robótica. Só quando homem e mulher caem na
+    // mesma voz (aparelho com uma voz só) é que o tom muda um pouquinho, para diferenciar.
+    const sameVoice = voice && pickVoice(voices, gender === 'm' ? 'f' : 'm', gender === 'm' ? 0 : 1) === voice;
+    const opts = { voice, rate, pitch: pitch ?? (sameVoice ? (gender === 'm' ? 0.94 : 1.05) : 1) };
     try {
       return await utter(text, opts);
     } catch (e) {

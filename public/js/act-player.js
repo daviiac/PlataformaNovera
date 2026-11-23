@@ -127,14 +127,14 @@
         status.textContent = `Fala ${idx + 1} de ${lines.length} — ${who}`;
         highlight(idx);
         try {
-          await Act.speak(text, { gender: data.speakers[who] || 'f', rate: slow ? 0.7 : 0.95 });
+          await Act.speak(text, { gender: data.speakers[who] || 'f', rate: slow ? 0.75 : 0.9 });
         } catch (err) {
           status.textContent = err.message;
           break;
         }
         if (my !== runId) return;
         idx += 1;
-        await new Promise((r) => setTimeout(r, 350));
+        await new Promise((r) => setTimeout(r, 550)); // pausa natural entre as falas
       }
       if (my === runId) {
         setPlaying(false);
@@ -255,12 +255,12 @@
       nextBtn.focus();
     }
 
-    stage.querySelector('[data-play]').addEventListener('click', () => { Act.stopSpeaking(); say(0.9); });
-    stage.querySelector('[data-slow]').addEventListener('click', () => { Act.stopSpeaking(); say(0.6); });
+    stage.querySelector('[data-play]').addEventListener('click', () => { Act.stopSpeaking(); say(0.85); });
+    stage.querySelector('[data-slow]').addEventListener('click', () => { Act.stopSpeaking(); say(0.7); });
     checkBtn.addEventListener('click', check);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } });
     nextBtn.addEventListener('click', () => {
-      if (i < sentences.length - 1) { i += 1; show(); say(0.9); return; }
+      if (i < sentences.length - 1) { i += 1; show(); say(0.85); return; }
       stage.querySelector('.dict-card').hidden = true;
       finish(score, sentences.length);
     });
