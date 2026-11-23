@@ -512,3 +512,8 @@
 .t-hw-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .t-btn-good { background: #2f9e6b; color: #fff; }
 .t-btn-bad { background: #c2566a; color: #fff; }
+
+/* Aviso por e-mail de novos cadastros (Controle Professor) */
+.t-email { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; padding: 0.6rem 0.85rem; border-radius: 12px; border: 1px solid var(--line); }
+.t-email.on { background: rgba(126, 214, 165, 0.1); border-color: rgba(126, 214, 165, 0.35); }
+.t-email.off { background: rgba(249, 213, 110, 0.1); border-color: rgba(249, 213, 110, 0.4); }

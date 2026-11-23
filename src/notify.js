@@ -6,48 +6,122 @@
  * O e-mail é só um AVISO: a aprovação é feita no Controle Professor(a), com login. O e-mail não
  * tem link de "aprovar", porque leitores de e-mail e antivírus abrem links sozinhos.
  *
- * Envio pelo Brevo (plano gratuito). Sem as variáveis abaixo, não envia nada e o cadastro
- * continua funcionando normalmente:
- *   BREVO_API_KEY  — chave da API do Brevo (SMTP & API → API Keys). Segredo: só na Vercel.
- *   NOTIFY_EMAIL   — quem recebe o aviso (ex.: o e-mail da escola).
- *   NOTIFY_FROM    — remetente verificado no Brevo (Senders). Pode ser o mesmo e-mail da escola.
- *   PUBLIC_URL     — endereço da plataforma, para o link do Controle Professor(a).
+ * Como envia (configurado só nas variáveis de ambiente da Vercel, nunca no código):
+ *
+ *  1) Gmail (recomendado): o e-mail sai pelo próprio Gmail, autenticado pelo Google, então
+ *     chega na caixa de entrada e não no spam.
+ *       GMAIL_USER          — a conta do Gmail que envia (ex.: a da escola).
+ *       GMAIL_APP_PASSWORD  — "senha de app" de 16 letras criada nessa conta (não é a senha normal).
+ *  2) Brevo (alternativa):
+ *       BREVO_API_KEY, NOTIFY_FROM (remetente verificado no Brevo).
+ *
+ *   NOTIFY_EMAIL — quem recebe o aviso. Sem ela, vai para o próprio GMAIL_USER.
+ *   PUBLIC_URL   — endereço da plataforma, para o link do Controle Professor(a).
+ *
+ * Sem configuração, não envia nada e o cadastro continua funcionando (aparece no Controle Professor).
  */
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const env = (n) => (process.env[n] || '').trim();
+const site = () => (env('PUBLIC_URL') || 'https://plataformanovera.vercel.app').replace(/\/+$/, '');
 
-function emailConfigured() {
-  return Boolean(env('BREVO_API_KEY') && env('NOTIFY_EMAIL') && env('NOTIFY_FROM'));
+function provider() {
+  if (env('GMAIL_USER') && env('GMAIL_APP_PASSWORD')) return 'gmail';
+  if (env('BREVO_API_KEY') && env('NOTIFY_FROM') && env('NOTIFY_EMAIL')) return 'brevo';
+  return null;
+}
+const recipient = () => env('NOTIFY_EMAIL') || env('GMAIL_USER');
+const emailConfigured = () => Boolean(provider());
+
+/** "no*****@gmail.com": mostra para a professora para onde vai, sem expor o endereço inteiro. */
+function maskEmail(e) {
+  const [user, domain] = String(e || '').split('@');
+  if (!user || !domain) return '';
+  return `${user.slice(0, 2)}${'*'.repeat(Math.max(1, user.length - 2))}@${domain}`;
 }
 
-async function notifyNewSignup({ name, email, username, level }) {
-  if (!emailConfigured()) return { sent: false, reason: 'não configurado' };
-  const site = (env('PUBLIC_URL') || 'https://plataformanovera.vercel.app').replace(/\/+$/, '');
-  const levelText = level === 'TEST' ? 'Não sabe (vai fazer o nivelamento)' : level;
-  const when = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  const html = `
-    <div style="font-family:Arial,sans-serif;font-size:15px;color:#222">
-      <h2 style="margin:0 0 12px">Novo cadastro aguardando aprovação</h2>
-      <p><b>Nome:</b> ${esc(name)}<br><b>Login:</b> ${esc(username || '')}<br><b>E-mail:</b> ${esc(email)}<br><b>Nível:</b> ${esc(levelText)}<br><b>Data:</b> ${esc(when)}</p>
-      <p>A pessoa só consegue entrar na plataforma depois que você aprovar.</p>
-      <p>Para aprovar ou recusar, entre no <b>Controle Professor(a)</b> com o seu login:<br>
-        <a href="${esc(site)}/professor">${esc(site)}/professor</a></p>
-      <p style="color:#777;font-size:13px">Se você não reconhece este cadastro, é só recusar. Este e-mail é automático.</p>
-    </div>`;
+function emailStatus() {
+  const p = provider();
+  return { configured: Boolean(p), provider: p, to: p ? maskEmail(recipient()) : null };
+}
+
+let transport = null;
+function gmailTransport() {
+  if (!transport) {
+    const nodemailer = require('nodemailer');
+    transport = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: env('GMAIL_USER'), pass: env('GMAIL_APP_PASSWORD').replace(/\s+/g, '') },
+      connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000,
+    });
+  }
+  return transport;
+}
+
+/** Envia um e-mail para a escola. Lança erro com mensagem clara se falhar. */
+async function sendToSchool({ subject, text, html }) {
+  const p = provider();
+  if (!p) return { sent: false, reason: 'não configurado' };
+  if (p === 'gmail') {
+    try {
+      await gmailTransport().sendMail({
+        from: { name: 'Plataforma Novera', address: env('GMAIL_USER') },
+        to: recipient(), subject, text, html,
+      });
+    } catch (err) {
+      transport = null;
+      if (err.code === 'EAUTH' || /Invalid login|Username and Password/i.test(err.message)) {
+        throw new Error('O Gmail recusou o login: confira o GMAIL_USER e a senha de app (GMAIL_APP_PASSWORD) na Vercel.');
+      }
+      throw new Error(`Falha ao enviar pelo Gmail: ${err.message}`);
+    }
+    return { sent: true, provider: p };
+  }
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': env('BREVO_API_KEY'), 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
       sender: { email: env('NOTIFY_FROM'), name: 'Plataforma Novera' },
-      to: [{ email: env('NOTIFY_EMAIL') }],
-      subject: `Novo cadastro para aprovar: ${String(name).slice(0, 60)}`,
-      htmlContent: html,
+      to: [{ email: recipient() }],
+      subject, htmlContent: html, textContent: text,
     }),
-    signal: AbortSignal.timeout(6000),
+    signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Brevo respondeu ${res.status}`);
-  return { sent: true };
+  if (!res.ok) throw new Error(`Falha ao enviar pelo Brevo (erro ${res.status}).`);
+  return { sent: true, provider: p };
 }
 
-module.exports = { notifyNewSignup, emailConfigured };
+const wrap = (inner) => `<div style="font-family:Arial,sans-serif;font-size:15px;color:#222">${inner}</div>`;
+
+async function notifyNewSignup({ name, email, username, level }) {
+  const levelText = level === 'TEST' ? 'Não sabe (vai fazer o nivelamento)' : level;
+  const when = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const url = `${site()}/professor`;
+  const text = [
+    'Novo cadastro aguardando aprovação na Plataforma Novera.', '',
+    `Nome: ${name}`, `Login: ${username || ''}`, `E-mail: ${email}`, `Nível: ${levelText}`, `Data: ${when}`, '',
+    'A pessoa só consegue entrar depois que você aprovar.',
+    `Para aprovar ou recusar, entre no Controle Professor(a): ${url}`, '',
+    'Se você não reconhece este cadastro, é só recusar. Este e-mail é automático.',
+  ].join('\n');
+  const html = wrap(`
+      <h2 style="margin:0 0 12px">Novo cadastro aguardando aprovação</h2>
+      <p><b>Nome:</b> ${esc(name)}<br><b>Login:</b> ${esc(username || '')}<br><b>E-mail:</b> ${esc(email)}<br><b>Nível:</b> ${esc(levelText)}<br><b>Data:</b> ${esc(when)}</p>
+      <p>A pessoa só consegue entrar na plataforma depois que você aprovar.</p>
+      <p>Para aprovar ou recusar, entre no <b>Controle Professor(a)</b> com o seu login:<br>
+        <a href="${esc(url)}">${esc(url)}</a></p>
+      <p style="color:#777;font-size:13px">Se você não reconhece este cadastro, é só recusar. Este e-mail é automático.</p>`);
+  return sendToSchool({ subject: `Plataforma Novera: novo cadastro de ${String(name).slice(0, 60)}`, text, html });
+}
+
+/** E-mail de teste (botão no Controle Professor), para conferir se o aviso está chegando. */
+function sendTestEmail(byName) {
+  const when = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const text = `Teste do aviso por e-mail da Plataforma Novera, enviado por ${byName} em ${when}.\n\nSe este e-mail chegou, os avisos de novos cadastros também vão chegar.`;
+  const html = wrap(`<h2 style="margin:0 0 12px">Teste do aviso por e-mail</h2>
+    <p>Enviado por <b>${esc(byName)}</b> em ${esc(when)}.</p>
+    <p>Se este e-mail chegou, os avisos de novos cadastros também vão chegar.</p>`);
+  return sendToSchool({ subject: 'Plataforma Novera: teste do aviso por e-mail', text, html });
+}
+
+module.exports = { notifyNewSignup, sendTestEmail, emailConfigured, emailStatus, maskEmail };

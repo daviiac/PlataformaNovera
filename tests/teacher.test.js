@@ -551,11 +551,28 @@ test('cadastro novo aguarda aprovação: só entra depois que a professora aprov
   }
 });
 
-test('aviso por e-mail: sem configuração não envia e não quebra o cadastro', async () => {
-  const { notifyNewSignup, emailConfigured } = require('../src/notify');
-  const saved = process.env.BREVO_API_KEY;
-  delete process.env.BREVO_API_KEY;
-  assert.equal(emailConfigured(), false);
-  assert.deepEqual(await notifyNewSignup({ name: 'X', email: 'x@exemplo.com', level: 'A1' }), { sent: false, reason: 'não configurado' });
-  if (saved !== undefined) process.env.BREVO_API_KEY = saved;
+test('aviso por e-mail: sem configuração não envia e não quebra o cadastro; professora vê a situação', async () => {
+  const { notifyNewSignup, emailConfigured, emailStatus, maskEmail } = require('../src/notify');
+  const KEYS = ['BREVO_API_KEY', 'NOTIFY_FROM', 'NOTIFY_EMAIL', 'GMAIL_USER', 'GMAIL_APP_PASSWORD'];
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  KEYS.forEach((k) => delete process.env[k]);
+  try {
+    assert.equal(emailConfigured(), false);
+    assert.deepEqual(await notifyNewSignup({ name: 'X', email: 'x@exemplo.com', level: 'A1' }), { sent: false, reason: 'não configurado' });
+
+    const t = await login(TEACHER.user, TEACHER.pass);
+    assert.deepEqual((await t('GET', '/api/teacher/email-status')).data, { configured: false, provider: null, to: null });
+    assert.equal((await t('POST', '/api/teacher/email-test')).data.code, 'EMAIL_NOT_CONFIGURED');
+    assert.equal((await client()('GET', '/api/teacher/email-status')).status, 401, 'só a equipe vê');
+
+    // Com o Gmail configurado: usa o Gmail e manda para o próprio Gmail (endereço mascarado na tela).
+    process.env.GMAIL_USER = 'escola.teste@gmail.com';
+    process.env.GMAIL_APP_PASSWORD = 'abcd efgh ijkl mnop';
+    assert.deepEqual(emailStatus(), { configured: true, provider: 'gmail', to: 'es**********@gmail.com' });
+    process.env.NOTIFY_EMAIL = 'outra@exemplo.com';
+    assert.equal(emailStatus().to, 'ou***@exemplo.com', 'NOTIFY_EMAIL escolhe quem recebe');
+    assert.equal(maskEmail('ab@x.com'), 'ab*@x.com');
+  } finally {
+    KEYS.forEach((k) => { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; });
+  }
 });

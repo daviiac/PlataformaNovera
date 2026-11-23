@@ -693,6 +693,34 @@
     try { localStorage.setItem('novera_t_help', help.open ? 'open' : 'closed'); } catch { /* sem armazenamento */ }
   });
 
+  // ------------------------------------------------------------ aviso por e-mail de novos cadastros
+  async function renderEmailStatus() {
+    const box = $('t-email');
+    let st;
+    try { st = await api('/api/teacher/email-status'); } catch { return; }
+    box.hidden = false;
+    box.className = `t-email small ${st.configured ? 'on' : 'off'}`;
+    box.innerHTML = st.configured
+      ? `✉️ <b>Aviso por e-mail de novos cadastros: ligado</b> <span class="dim">(vai para ${esc(st.to)} pelo ${st.provider === 'gmail' ? 'Gmail' : 'Brevo'})</span>
+         <button type="button" class="btn btn-ghost btn-sm" data-email-test>Enviar e-mail de teste</button>`
+      : '✉️ <b>Aviso por e-mail de novos cadastros: desligado.</b> <span class="dim">Falta configurar o Gmail na Vercel (GMAIL_USER e GMAIL_APP_PASSWORD). Enquanto isso, os cadastros novos aparecem só aqui e no sino 🔔.</span>';
+  }
+  $('t-email').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-email-test]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    try {
+      const r = await api('/api/teacher/email-test', { method: 'POST' });
+      Novera.toast(`E-mail de teste enviado para ${r.to} ✓ Confira a caixa de entrada.`);
+    } catch (err) {
+      Novera.toast(err.message);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Enviar e-mail de teste';
+  });
+  renderEmailStatus();
+
   // Link da notificação "fulano enviou o homework": /professor#anexo=<id> abre o Anexo aluno dele.
   function openFromHash() {
     const m = /^#anexo=(\d+)$/.exec(location.hash);

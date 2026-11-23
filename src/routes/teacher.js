@@ -14,6 +14,7 @@ const { ORDER, levelHistory, unlockedLevels } = require('../levels');
 const { HOMEWORK, HOMEWORK_BY_KEY } = require('../lessons/catalog');
 const { submissionsOf, removeAllFiles } = require('../homework');
 const notify = require('../notifications');
+const { emailStatus, sendTestEmail } = require('../notify');
 
 const router = express.Router();
 router.use(requireTeacher);
@@ -351,6 +352,24 @@ router.post('/students/:id/approve', ah(async (req, res) => {
  * Exclui o cadastro do aluno de vez: conta, resultados das atividades, nivelamentos e histórico
  * de nível (apagados em cascata pelo banco). Não dá para desfazer.
  */
+/** Aviso por e-mail de novos cadastros: está configurado? para onde vai (endereço mascarado)? */
+router.get('/email-status', (req, res) => res.json(emailStatus()));
+
+/** Envia um e-mail de teste para conferir se o aviso chega (e não cai no spam). */
+router.post('/email-test', ah(async (req, res) => {
+  const status = emailStatus();
+  if (!status.configured) {
+    return res.status(400).json({ error: 'O aviso por e-mail ainda não está configurado na Vercel (GMAIL_USER e GMAIL_APP_PASSWORD).', code: 'EMAIL_NOT_CONFIGURED' });
+  }
+  try {
+    await sendTestEmail(req.user.name);
+  } catch (err) {
+    console.warn('[e-mail de teste]', err.message);
+    return res.status(502).json({ error: err.message, code: 'EMAIL_FAILED' });
+  }
+  res.json({ ok: true, to: status.to });
+}));
+
 /**
  * Anexos do aluno: homeworks que ele enviou, na ordem das aulas (código e título), com os
  * arquivos e a correção. Os que aguardam correção vêm marcados.
