@@ -315,7 +315,7 @@
           ${h.available
             ? `<button type="button" class="btn btn-ghost btn-sm" data-open-hw="${i}">Abrir</button>
                <a class="btn btn-sm" href="/api/tracks/homework/${encodeURIComponent(h.key)}/file" download>Baixar</a>
-               ${isStudent ? `<label class="btn btn-sm btn-upload" title="Foto, PDF ou Word (até ${HW_MAX_MB} MB)">📤 ${sent ? 'Enviar mais' : 'Enviar homework'}
+               ${isStudent ? `<label class="btn btn-sm btn-upload" title="Foto, PDF ou Word (até ${HW_MAX_MB} MB)">📤 ${sent ? 'Enviar mais' : 'Enviar Homework/Script'}
                  <input type="file" accept="${HW_ACCEPT}" multiple hidden data-upload-hw="${i}"></label>` : ''}`
             : '<span class="tag">Em breve</span>'}
         </div>
