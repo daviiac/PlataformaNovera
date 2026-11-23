@@ -464,7 +464,7 @@ th { color: var(--dim); font-weight: 500; font-size: 0.72rem; text-transform: up
 .notif-task .notif-title a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 640px) {
   .notif-pop { padding: 1.1rem; }
-  .viewer.notif-pop-wrap { padding: 16px; }
+  .viewer.notif-pop-wrap { padding: 0; align-items: flex-end; }
   .notif-pop-right { flex: 1; }
   .notif-pop-actions .btn { flex: 1; }
 }
@@ -477,3 +477,62 @@ th { color: var(--dim); font-weight: 500; font-size: 0.72rem; text-transform: up
 .notif-pop-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; }
 .notif-pop-body { display: grid; gap: 0.2rem; }
 @media (prefers-reduced-motion: reduce) { .nav-bell.has-unread > span:first-child { animation: none; } }
+
+/* ======================================================================
+   Celular: menu fixo embaixo (como app), gavetas que sobem e movimento
+   ====================================================================== */
+html { -webkit-tap-highlight-color: transparent; }
+.tabbar { display: none; }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+@keyframes sheet-up { from { transform: translateY(100%); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@keyframes page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 640px) {
+  /* Topo enxuto: marca + nível + Sair. O menu vai para baixo. */
+  body.has-tabbar .nav { display: none; }
+  body.has-tabbar { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  .topbar-inner { flex-wrap: nowrap; padding: 0.45rem 0.55rem 0.45rem 0.7rem; }
+  .brand-mark { width: 30px; height: 30px; }
+
+  .tabbar {
+    position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 45;
+    display: flex; gap: 2px; padding: 5px; border-radius: 22px;
+    background: rgba(26, 16, 41, 0.94); border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .tab {
+    flex: 1; min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 7px 2px 6px; border: 0; border-radius: 16px;
+    background: none; color: var(--dim); font: inherit; font-size: 0.66rem; font-weight: 500; text-decoration: none; cursor: pointer;
+    transition: background .2s, color .2s, transform .12s;
+  }
+  .tab-ico { position: relative; font-size: 1.3rem; line-height: 1; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+  .tab-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab.active { color: var(--text); background: var(--violet-soft); }
+  .tab.active .tab-ico { transform: translateY(-2px) scale(1.15); }
+  .tab:active { transform: scale(0.92); }
+  .tab .nav-bell-count { top: -7px; right: -13px; }
+  .tab-bell.has-unread .tab-ico { animation: bell-ring 2.4s ease-in-out infinite; transform-origin: 50% 0; }
+
+  /* Avisos sobem acima do menu de baixo. */
+  .notif-panel.is-sheet { left: 8px; right: 8px; top: auto; width: auto; bottom: calc(88px + env(safe-area-inset-bottom));
+    max-height: 68vh; border-radius: 20px; animation: sheet-up .28s ease-out; }
+  .toast { bottom: calc(96px + env(safe-area-inset-bottom)); width: max-content; max-width: calc(100vw - 32px); text-align: center; }
+
+  /* Pop-up de avisos e janelas: gaveta presa embaixo, com a "alcinha" no topo. */
+  .notif-pop { width: 100%; max-height: 86vh; border-radius: 22px 22px 0 0; padding-bottom: calc(1.1rem + env(safe-area-inset-bottom));
+    animation: sheet-up .3s ease-out; }
+  .notif-pop::before, .hw-modal::before { content: ""; justify-self: center; display: block; width: 42px; height: 5px; margin: -0.4rem auto 0.2rem;
+    border-radius: 99px; background: rgba(255, 255, 255, 0.22); }
+
+  /* Campos com 16px: o iPhone não dá zoom sozinho ao tocar. */
+  input, select, textarea { font-size: 16px; }
+
+  /* Conteúdo entra com um leve deslizar. */
+  main, .container { animation: page-in .35s ease-out both; }
+  .page-head h1, h1 { font-size: clamp(1.6rem, 7vw, 2.1rem); }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  main, .container, .notif-pop, .notif-panel.is-sheet { animation: none; }
+  .tab-bell.has-unread .tab-ico { animation: none; }
+}

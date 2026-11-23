@@ -187,3 +187,16 @@
   .hw-actions { justify-content: flex-start; }
   .hw-code { justify-self: start; }
 }
+
+/* Celular: mapa de aulas sempre "aula e, embaixo, o Home Work"; janela do homework como gaveta */
+.map-row.vertical .slot .lesson-card { order: 1; }
+.map-row.vertical .slot .hw-link { order: 2; align-self: flex-start; padding-left: 0.2rem; }
+.lesson-card:active { transform: scale(0.97); }
+@media (max-width: 640px) {
+  .planets { gap: 0.5rem; }
+  .hw-overlay { place-items: end center; padding: 0; }
+  .hw-modal { width: 100%; max-height: 86vh; border-radius: 22px 22px 0 0; padding-bottom: calc(1.2rem + env(safe-area-inset-bottom));
+    animation: sheet-up .3s ease-out; }
+  .map-row.vertical .map-node { min-height: 74px; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .hw-modal { animation: none; } }

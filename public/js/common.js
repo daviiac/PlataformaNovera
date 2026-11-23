@@ -181,9 +181,10 @@ const Novera = (() => {
     if (!isStaff) items.push(link('nivelamento', '/nivelamento', 'Nivelamento'));
     // Sino de notificações, ao lado do Nivelamento (equipe: no fim do menu).
     if (!user.mustChangePassword) {
-      items.push(`<button type="button" class="nav-bell" id="nav-bell" aria-haspopup="dialog" aria-expanded="false" aria-label="Notificações">
-        <span aria-hidden="true">🔔</span><span class="nav-bell-count" id="nav-bell-count" hidden></span></button>`);
+      items.push(`<button type="button" class="nav-bell" id="nav-bell" data-bell aria-haspopup="dialog" aria-expanded="false" aria-label="Notificações">
+        <span aria-hidden="true">🔔</span><span class="nav-bell-count" data-bell-count hidden></span></button>`);
     }
+    renderTabbar(user, active, { isAdmin, isStaff, placed });
     const levelBadge = user.level ? `<span class="level-badge level-${esc(user.level)}">${esc(user.level)}</span>` : '';
     const roleTag = isAdmin ? '<span class="tag">Admin</span>' : isTeacher ? '<span class="tag">Professor(a)</span>' : '';
 
@@ -203,6 +204,34 @@ const Novera = (() => {
     setupDropdown(el.querySelector('.nav-dd'));
     renderFooter();
     if (!user.mustChangePassword) Notifications.start(user);
+  }
+
+  /**
+   * Celular: menu fixo embaixo, como um app (ícone + nome), com o sino. Fica no <body> porque a
+   * barra do topo usa backdrop-filter, que prenderia um "position: fixed" dentro dela.
+   */
+  function renderTabbar(user, active, { isAdmin, isStaff, placed }) {
+    document.querySelector('body > .tabbar')?.remove();
+    const tabs = [];
+    const tab = (key, href, icon, label) => tabs.push(
+      `<a href="${href}" class="tab ${key === active ? 'active' : ''}" ${key === active ? 'aria-current="page"' : ''}><span class="tab-ico" aria-hidden="true">${icon}</span><span class="tab-label">${label}</span></a>`,
+    );
+    if (isAdmin) tab('admin', '/admin', '🛠️', 'Admin');
+    if (isStaff) tab('professor', '/professor', '📊', 'Controle');
+    tab('trilha', '/trilha', '🪐', isStaff ? 'Trilhas' : 'Trilha');
+    if (placed) tab('atividades', '/atividades', '🧩', 'Atividades');
+    if (placed && !isAdmin) tab('worksheets', '/atividades?tipo=worksheet', '📝', 'Worksheets');
+    if (!isStaff) tab('nivelamento', '/nivelamento', '🎯', 'Nível');
+    if (!user.mustChangePassword) {
+      tabs.push(`<button type="button" class="tab tab-bell" data-bell aria-haspopup="dialog" aria-expanded="false" aria-label="Notificações">
+        <span class="tab-ico" aria-hidden="true">🔔<span class="nav-bell-count" data-bell-count hidden></span></span><span class="tab-label">Avisos</span></button>`);
+    }
+    const bar = document.createElement('nav');
+    bar.className = 'tabbar';
+    bar.setAttribute('aria-label', 'Menu principal');
+    bar.innerHTML = tabs.join('');
+    document.body.appendChild(bar);
+    document.body.classList.add('has-tabbar');
   }
 
   // ------------------------------------------------------------ notificações (sino + pop-up)
@@ -264,18 +293,21 @@ const Novera = (() => {
       <ul class="notif-list">${pending.map((p) => pendingHtml(p, inPopup)).join('')}</ul>` : '');
     const fillBars = (root) => root.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
 
+    // Há dois sinos: o do topo (computador) e o do menu de baixo (celular).
+    const bells = () => [...document.querySelectorAll('[data-bell]')];
     function paintBadge() {
-      const count = document.getElementById('nav-bell-count');
-      const bell = document.getElementById('nav-bell');
-      if (!count || !bell) return;
       const total = unread + pending.length;
-      count.hidden = total === 0;
-      count.textContent = total > 99 ? '99+' : String(total);
-      bell.classList.toggle('has-unread', total > 0);
       const parts = [];
       if (unread) parts.push(`${unread} não lida${unread > 1 ? 's' : ''}`);
       if (pending.length) parts.push(`${pending.length} atividade${pending.length > 1 ? 's' : ''} para terminar`);
-      bell.setAttribute('aria-label', parts.length ? `Notificações: ${parts.join(', ')}` : 'Notificações');
+      document.querySelectorAll('[data-bell-count]').forEach((count) => {
+        count.hidden = total === 0;
+        count.textContent = total > 99 ? '99+' : String(total);
+      });
+      bells().forEach((bell) => {
+        bell.classList.toggle('has-unread', total > 0);
+        bell.setAttribute('aria-label', parts.length ? `Notificações: ${parts.join(', ')}` : 'Notificações');
+      });
     }
 
     async function load() {
@@ -310,8 +342,13 @@ const Novera = (() => {
 
     // ---------- painel do sino ----------
     function placePanel() {
-      const bell = document.getElementById('nav-bell');
-      if (!panel || !bell) return;
+      if (!panel) return;
+      // Celular: abre como uma "gaveta" que sobe acima do menu de baixo (posição só pelo CSS).
+      const sheet = window.matchMedia('(max-width: 640px)').matches;
+      panel.classList.toggle('is-sheet', sheet);
+      if (sheet) { panel.style.cssText = ''; return; }
+      const bell = bells().find((b) => b.getBoundingClientRect().width > 0);
+      if (!bell) return;
       const r = bell.getBoundingClientRect();
       const w = Math.min(380, window.innerWidth - 16);
       panel.style.width = `${w}px`;
@@ -335,7 +372,7 @@ const Novera = (() => {
       if (!panel) return;
       panel.remove();
       panel = null;
-      document.getElementById('nav-bell')?.setAttribute('aria-expanded', 'false');
+      bells().forEach((b) => b.setAttribute('aria-expanded', 'false'));
     }
     function openPanel() {
       panel = document.createElement('div');
@@ -345,7 +382,7 @@ const Novera = (() => {
       paintPanel();
       document.body.appendChild(panel);
       placePanel();
-      document.getElementById('nav-bell').setAttribute('aria-expanded', 'true');
+      bells().forEach((b) => b.setAttribute('aria-expanded', 'true'));
       panel.addEventListener('click', onAction);
       load();
     }
@@ -429,16 +466,19 @@ const Novera = (() => {
 
     async function start(user) {
       isStudent = user.role === 'student' && Boolean(user.level);
-      const bell = document.getElementById('nav-bell');
-      bell?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (panel) closePanel(); else openPanel();
+      bells().forEach((bell) => {
+        if (bell.dataset.bound) return;
+        bell.dataset.bound = '1';
+        bell.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (panel) closePanel(); else openPanel();
+        });
       });
       paintBadge();
       if (started) return;
       started = true;
       document.addEventListener('click', (e) => {
-        if (panel && !panel.contains(e.target) && !e.target.closest('#nav-bell')) closePanel();
+        if (panel && !panel.contains(e.target) && !e.target.closest('[data-bell]')) closePanel();
       });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
       window.addEventListener('resize', placePanel);
