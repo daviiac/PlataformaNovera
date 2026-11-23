@@ -92,22 +92,72 @@ const Act = (() => {
 
   function stopSpeaking() { if (synth) synth.cancel(); }
 
+  /**
+   * Celular (principalmente iPhone): a voz só é liberada se o primeiro "falar" acontecer
+   * no mesmo instante do toque. No primeiro toque em qualquer lugar da página, fala um
+   * texto vazio e mudo para destravar a voz; depois disso, as falas seguintes funcionam.
+   */
+  let unlocked = false;
+  function unlockVoice() {
+    if (unlocked || !ttsSupported()) return;
+    unlocked = true;
+    try {
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      u.lang = 'en-US';
+      synth.speak(u);
+      synth.resume();
+    } catch { /* sem voz: o aviso aparece ao tentar ouvir */ }
+  }
+  if (ttsSupported()) {
+    ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockVoice, { capture: true, passive: true }));
+    voicesReady(); // carrega a lista de vozes já ao abrir a página
+  }
+
+  const isAbort = (e) => e && (e.error === 'interrupted' || e.error === 'canceled');
+
+  function utter(text, { voice, rate, pitch }) {
+    return new Promise((resolve, reject) => {
+      const u = new SpeechSynthesisUtterance(text);
+      if (voice) u.voice = voice;
+      u.lang = voice?.lang?.replace('_', '-') || 'en-US';
+      u.rate = rate;
+      u.pitch = pitch;
+      let settled = false;
+      const finish = (fn, arg) => { if (!settled) { settled = true; clearTimeout(guard); fn(arg); } };
+      // Alguns Androids não avisam o fim da fala: segue em frente depois do tempo esperado.
+      const words = String(text).split(/\s+/).length;
+      const guard = setTimeout(() => finish(resolve), Math.max(4000, (words * 650) / Math.max(rate, 0.5) + 3000));
+      u.onend = () => finish(resolve);
+      u.onerror = (e) => (isAbort(e) ? finish(resolve) : finish(reject, e));
+      synth.resume(); // Chrome às vezes fica "pausado" e não fala
+      synth.speak(u);
+    });
+  }
+
   /** Fala um texto. Retorna uma Promise que resolve ao terminar. */
   async function speak(text, { gender = 'f', rate = 0.95, pitch } = {}) {
     if (!ttsSupported()) throw new Error('Seu navegador não tem voz em inglês disponível.');
-    const voices = await voicesReady();
-    return new Promise((resolve) => {
-      const u = new SpeechSynthesisUtterance(text);
-      const voice = pickVoice(voices, gender, gender === 'm' ? 1 : 0);
-      if (voice) u.voice = voice;
-      u.lang = voice?.lang || 'en-US';
-      u.rate = rate;
-      // Se só houver uma voz, muda o tom para diferenciar os personagens.
-      u.pitch = pitch ?? (gender === 'm' ? 0.85 : 1.1);
-      u.onend = resolve;
-      u.onerror = resolve;
-      synth.speak(u);
-    });
+    unlockVoice();
+    // Com as vozes já carregadas, fala na hora (sem esperar), para valer o toque no celular.
+    const voices = voicesCache?.length ? voicesCache : await voicesReady();
+    const voice = pickVoice(voices, gender, gender === 'm' ? 1 : 0);
+    // Se só houver uma voz, muda o tom para diferenciar os personagens.
+    const opts = { voice, rate, pitch: pitch ?? (gender === 'm' ? 0.85 : 1.1) };
+    try {
+      return await utter(text, opts);
+    } catch (e) {
+      if (e?.error === 'not-allowed') {
+        throw new Error('O celular bloqueou o som. Toque em ▶ de novo para ouvir.');
+      }
+      // A voz escolhida falhou (comum no Android): tenta de novo com a voz padrão em inglês.
+      try {
+        return await utter(text, { ...opts, voice: null });
+      } catch {
+        throw new Error('Não foi possível tocar o áudio. Confira se o celular não está no silencioso e se há voz em inglês instalada.');
+      }
+    }
   }
 
   // ---------------------------------------------------------------- YouTube

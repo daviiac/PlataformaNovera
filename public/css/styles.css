@@ -536,3 +536,23 @@ html { -webkit-tap-highlight-color: transparent; }
   main, .container, .notif-pop, .notif-panel.is-sheet { animation: none; }
   .tab-bell.has-unread .tab-ico { animation: none; }
 }
+
+/* Celular: lista que abre ao tocar num ícone do menu de baixo */
+.sheet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.sheet-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0.8rem; border-radius: 14px; color: var(--text); text-decoration: none;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); transition: background .15s, transform .12s; }
+.sheet-item:active { transform: scale(0.98); background: var(--violet-soft); }
+.sheet-item.is-locked { opacity: 0.55; }
+.sheet-ico { width: 32px; display: grid; place-items: center; font-size: 1.25rem; flex: none; }
+.sheet-label { flex: 1; min-width: 0; font-weight: 500; }
+.sheet-tag { font-size: 0.7rem; color: var(--dim); white-space: nowrap; }
+.sheet-tag.own { color: var(--success); }
+.sheet-go { color: var(--dim); font-size: 1.3rem; line-height: 1; }
+@media (max-width: 640px) {
+  .tab-sheet .sheet-list > li { animation: pop-in .25s ease-out both; }
+  .tab-sheet .sheet-list > li:nth-child(2) { animation-delay: 25ms; } .tab-sheet .sheet-list > li:nth-child(3) { animation-delay: 50ms; }
+  .tab-sheet .sheet-list > li:nth-child(4) { animation-delay: 75ms; } .tab-sheet .sheet-list > li:nth-child(n+5) { animation-delay: 100ms; }
+}
+@media (prefers-reduced-motion: reduce) { .tab-sheet .sheet-list > li { animation: none; } }
+
+.tab[aria-expanded="true"] { color: var(--text); background: rgba(255, 255, 255, 0.07); }

@@ -216,11 +216,15 @@ const Novera = (() => {
     const tab = (key, href, icon, label) => tabs.push(
       `<a href="${href}" class="tab ${key === active ? 'active' : ''}" ${key === active ? 'aria-current="page"' : ''}><span class="tab-ico" aria-hidden="true">${icon}</span><span class="tab-label">${label}</span></a>`,
     );
+    // Ícone que abre uma lista (gaveta) para escolher, em vez de ir direto para a página.
+    const listTab = (key, icon, label) => tabs.push(
+      `<button type="button" class="tab ${key === active ? 'active' : ''}" data-tab-list="${key}" aria-haspopup="dialog" aria-expanded="false"><span class="tab-ico" aria-hidden="true">${icon}</span><span class="tab-label">${label}</span></button>`,
+    );
     if (isAdmin) tab('admin', '/admin', '🛠️', 'Admin');
     if (isStaff) tab('professor', '/professor', '📊', 'Controle');
-    tab('trilha', '/trilha', '🪐', isStaff ? 'Trilhas' : 'Trilha');
-    if (placed) tab('atividades', '/atividades', '🧩', 'Atividades');
-    if (placed && !isAdmin) tab('worksheets', '/atividades?tipo=worksheet', '📝', 'Worksheets');
+    listTab('trilha', '🪐', isStaff ? 'Trilhas' : 'Trilha');
+    if (placed) listTab('atividades', '🧩', 'Atividades');
+    if (placed && !isAdmin) listTab('worksheets', '📝', 'Worksheets');
     if (!isStaff) tab('nivelamento', '/nivelamento', '🎯', 'Nível');
     if (!user.mustChangePassword) {
       tabs.push(`<button type="button" class="tab tab-bell" data-bell aria-haspopup="dialog" aria-expanded="false" aria-label="Notificações">
@@ -232,7 +236,87 @@ const Novera = (() => {
     bar.innerHTML = tabs.join('');
     document.body.appendChild(bar);
     document.body.classList.add('has-tabbar');
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-tab-list]');
+      if (!b) return;
+      e.stopPropagation();
+      TabSheet.toggle(b, user);
+    });
   }
+
+  /** Gaveta com a lista de um ícone do menu de baixo (níveis da trilha, tipos de atividade...). */
+  const TabSheet = (() => {
+    let sheet = null;
+    let openKey = null;
+    const LEVELS = [['A1', 'Iniciante'], ['A2', 'Básico'], ['B2', 'Intermediário superior']];
+
+    const row = (href, icon, label, extra = '', locked = false) => (locked
+      ? `<li><span class="sheet-item is-locked"><span class="sheet-ico" aria-hidden="true">🔒</span><span class="sheet-label">${label}</span><span class="sheet-tag">Liberado pela professora</span></span></li>`
+      : `<li><a class="sheet-item" href="${href}"><span class="sheet-ico" aria-hidden="true">${icon}</span><span class="sheet-label">${label}</span>${extra}<span class="sheet-go" aria-hidden="true">›</span></a></li>`);
+
+    async function content(key, user) {
+      if (key === 'atividades') {
+        return {
+          title: '🧩 Atividades',
+          items: ACTIVITY_MENU.map((t) => row(`/atividades?tipo=${t.key}`, t.icon, esc(t.label)))
+            .concat(row('/atividades', '✨', 'Ver todas as atividades')).join(''),
+        };
+      }
+      const mine = (l) => (user.level === l ? '<span class="sheet-tag own">Seu nível</span>' : '');
+      if (key === 'worksheets') {
+        return {
+          title: '📝 Worksheets',
+          items: [row('/atividades?tipo=worksheet&nivel=', '📚', 'Todos os níveis')]
+            .concat(LEVELS.map(([l, n]) => row(`/atividades?tipo=worksheet&nivel=${l}`, `<span class="level-badge level-${l}">${l}</span>`, n, mine(l)))).join(''),
+        };
+      }
+      // Trilha: só os níveis liberados abrem (aluno); a equipe vê todos.
+      let unlocked = LEVELS.map(([l]) => l);
+      if (user.role === 'student') {
+        try { ({ unlocked } = await api('/api/tracks')); } catch { unlocked = user.level ? [user.level] : []; }
+      }
+      return {
+        title: user.role === 'student' ? '🪐 Minha trilha' : '🪐 Trilhas',
+        items: LEVELS.map(([l, n]) => row(`/trilha?nivel=${l}`, `<span class="level-badge level-${l}">${l}</span>`, `Trilha ${l} · ${n}`, mine(l), !unlocked.includes(l))).join(''),
+      };
+    }
+
+    function close() {
+      if (!sheet) return;
+      sheet.remove();
+      sheet = null;
+      openKey = null;
+      document.querySelectorAll('[data-tab-list]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    }
+
+    async function toggle(btn, user) {
+      const key = btn.dataset.tabList;
+      if (openKey === key) return close();
+      close();
+      Notifications.closePanel(); // só uma gaveta aberta por vez
+      openKey = key;
+      btn.setAttribute('aria-expanded', 'true');
+      sheet = document.createElement('div');
+      sheet.className = 'notif-panel is-sheet tab-sheet';
+      sheet.setAttribute('role', 'dialog');
+      sheet.innerHTML = '<p class="notif-empty">Carregando…</p>';
+      document.body.appendChild(sheet);
+      const mySheet = sheet;
+      const { title, items } = await content(key, user);
+      if (sheet !== mySheet) return; // fechou enquanto carregava
+      sheet.setAttribute('aria-label', title.replace(/^\S+\s/, ''));
+      sheet.innerHTML = `<div class="notif-head"><strong>${title}</strong>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-sheet-close aria-label="Fechar">✕</button></div>
+        <ul class="sheet-list">${items}</ul>`;
+      sheet.querySelector('[data-sheet-close]').addEventListener('click', close);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (sheet && !sheet.contains(e.target) && !e.target.closest('[data-tab-list]')) close();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    return { toggle, close };
+  })();
 
   // ------------------------------------------------------------ notificações (sino + pop-up)
   // Pop-up: aparece a cada acesso (uma vez por aba/sessão do navegador) enquanto houver não lidas.
@@ -375,6 +459,7 @@ const Novera = (() => {
       bells().forEach((b) => b.setAttribute('aria-expanded', 'false'));
     }
     function openPanel() {
+      TabSheet.close(); // só uma gaveta aberta por vez
       panel = document.createElement('div');
       panel.className = 'notif-panel';
       panel.setAttribute('role', 'dialog');
@@ -494,7 +579,7 @@ const Novera = (() => {
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
     }
 
-    return { start, reload: load };
+    return { start, reload: load, closePanel };
   })();
 
   /** Rodapé com os Termos de uso / Privacidade e os Termos do YouTube (exigência do YouTube). */
