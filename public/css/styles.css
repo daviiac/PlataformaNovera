@@ -35,6 +35,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Uma fonte só em toda a plataforma (Geist): inclusive botões, campos, listas de opções e códigos. */
+button, input, select, textarea, optgroup, option, code, kbd, pre, samp { font-family: var(--font); }
 html, body { margin: 0; }
 body {
   font-family: var(--font);
