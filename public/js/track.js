@@ -1,5 +1,5 @@
 (async () => {
-  const { api, requireUser, renderTopbar, esc, formatBytes, formatDate, iconLabel, openViewer, toast } = Novera;
+  const { api, requireUser, renderTopbar, esc, formatBytes, formatDate, openViewer, toast } = Novera;
   // Busca a visão geral junto com o usuário (uma espera a menos ao abrir a página).
   const overviewP = api('/api/tracks').catch((err) => err);
   const user = await requireUser();
@@ -410,29 +410,6 @@
   $('hw-overlay').addEventListener('click', (e) => { if (e.target.id === 'hw-overlay') closeHomework(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('hw-overlay').hidden) closeHomework(); });
 
-  // ------------------------------------------------------------ materiais extras (módulos)
-  let extraMaterials = [];
-  function materialHtml(m) {
-    return `
-      <div class="material">
-        <div class="mat-icon kind-${m.kind}">${esc(iconLabel(m))}</div>
-        <div class="mat-info">
-          <button class="mat-title-btn" type="button" data-open="${m.id}">${esc(m.title)}</button>
-          <span class="small dim">${esc(m.originalName)} · ${formatBytes(m.size)} · ${formatDate(m.createdAt)}</span>
-        </div>
-        <div class="mat-actions">
-          <button class="btn btn-ghost btn-sm" type="button" data-open="${m.id}">Visualizar</button>
-          <a class="btn btn-sm" href="${m.downloadUrl}" download>Baixar</a>
-        </div>
-      </div>`;
-  }
-  $('modules').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-open]');
-    if (!b) return;
-    const i = extraMaterials.findIndex((m) => String(m.id) === b.dataset.open);
-    if (i >= 0) openViewer(extraMaterials, i);
-  });
-
   // ------------------------------------------------------------ carregar nível
   // Link da notificação (ex.: homework corrigido): /trilha?nivel=B2#hw=<chave> abre o homework.
   function openHomeworkFromHash() {
@@ -453,7 +430,7 @@
     $('track-error').textContent = '';
     $('map-rows').innerHTML = '<p class="muted">Carregando…</p>';
     try {
-      const [map, extras] = await Promise.all([api(`/api/tracks/${current}/lessons`), api(`/api/tracks/${current}`)]);
+      const map = await api(`/api/tracks/${current}/lessons`);
       document.title = `Novera · Trilha ${current}`;
       $('trail-level').textContent = `${current} · ${NAMES[current]}`;
       $('trail-desc').textContent = map.track.description;
@@ -462,15 +439,6 @@
       lessons = map.lessons;
       renderMap();
       openHomeworkFromHash();
-
-      extraMaterials = extras.modules.flatMap((m) => m.materials);
-      const withMat = extras.modules.filter((m) => m.materials.length);
-      $('extras').hidden = !withMat.length;
-      $('extras-count').textContent = `${extraMaterials.length} arquivo(s)`;
-      $('modules').innerHTML = withMat.map((m) => `
-        <article class="module open"><div class="module-body">
-          <p class="mod-title">${esc(m.title)}</p>${m.materials.map(materialHtml).join('')}
-        </div></article>`).join('');
     } catch (err) {
       $('map-rows').innerHTML = '';
       if (err.code === 'PLACEMENT_REQUIRED') return window.location.replace('/nivelamento');
